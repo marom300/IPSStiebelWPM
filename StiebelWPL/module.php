@@ -125,7 +125,20 @@ class StiebelWPL extends IPSModule
         if ($host === '') {
             return false;
         }
+        // Das ISG verträgt nur eine Modbus-Verbindung gleichzeitig -> alle Zugriffe serialisieren
+        if (!IPS_SemaphoreEnter($this->semName(), 5000)) {
+            $this->SendDebug('Modbus', 'Update übersprungen (Zugriff belegt)', 0);
+            return false;
+        }
+        try {
+            return $this->doUpdate();
+        } finally {
+            IPS_SemaphoreLeave($this->semName());
+        }
+    }
 
+    private function doUpdate(): bool
+    {
         $sock = $this->mbConnect();
         if ($sock === false) {
             $this->SetStatus(201);
@@ -198,18 +211,24 @@ class StiebelWPL extends IPSModule
             return 'Bitte zuerst die IP-Adresse des ISG eintragen und speichern.';
         }
 
-        $sock = $this->mbConnect();
-        if ($sock === false) {
-            return "Keine Verbindung zu {$host}:" . $this->ReadPropertyInteger('Port') . ' möglich.';
+        if (!IPS_SemaphoreEnter($this->semName(), 5000)) {
+            return 'Modbus-Zugriff belegt, bitte erneut versuchen.';
         }
-
         try {
-            $this->WriteAttributeInteger('AddrOffset', -99); // Neuerkennung erzwingen
-            $off = $this->detectOffset($sock);
-            $regler = $this->mbRead($sock, 4, 5002 + $off, 1);
-            $aussen = $this->mbRead($sock, 4, 507 + $off, 1);
+            $sock = $this->mbConnect();
+            if ($sock === false) {
+                return "Keine Verbindung zu {$host}:" . $this->ReadPropertyInteger('Port') . ' möglich.';
+            }
+            try {
+                $this->WriteAttributeInteger('AddrOffset', -99); // Neuerkennung erzwingen
+                $off = $this->detectOffset($sock);
+                $regler = $this->mbRead($sock, 4, 5002 + $off, 1);
+                $aussen = $this->mbRead($sock, 4, 507 + $off, 1);
+            } finally {
+                fclose($sock);
+            }
         } finally {
-            fclose($sock);
+            IPS_SemaphoreLeave($this->semName());
         }
 
         $reglerName = 'unbekannt';
@@ -254,17 +273,23 @@ class StiebelWPL extends IPSModule
                 $raw = (int) $Value;
         }
 
-        $sock = $this->mbConnect();
-        if ($sock === false) {
-            $this->SetStatus(201);
-            throw new Exception('Keine Verbindung zum ISG.');
+        if (!IPS_SemaphoreEnter($this->semName(), 5000)) {
+            throw new Exception('Modbus-Zugriff belegt, bitte erneut versuchen.');
         }
-
         try {
-            $off = $this->detectOffset($sock);
-            $ok = $this->mbWrite($sock, $register + $off, $raw);
+            $sock = $this->mbConnect();
+            if ($sock === false) {
+                $this->SetStatus(201);
+                throw new Exception('Keine Verbindung zum ISG.');
+            }
+            try {
+                $off = $this->detectOffset($sock);
+                $ok = $this->mbWrite($sock, $register + $off, $raw);
+            } finally {
+                fclose($sock);
+            }
         } finally {
-            fclose($sock);
+            IPS_SemaphoreLeave($this->semName());
         }
 
         if (!$ok) {
@@ -604,18 +629,27 @@ class StiebelWPL extends IPSModule
     // Modbus TCP
     // =====================================================================
 
+    private function semName(): string
+    {
+        return 'SWPL_Modbus_' . $this->InstanceID;
+    }
+
     /** @return resource|false */
     private function mbConnect()
     {
         $host = trim($this->ReadPropertyString('Host'));
         $port = $this->ReadPropertyInteger('Port');
-        $sock = @fsockopen($host, $port, $errno, $errstr, 3);
-        if ($sock === false) {
-            $this->SendDebug('Modbus', "Connect fehlgeschlagen: {$errstr} ({$errno})", 0);
-            return false;
+        // Das ISG lehnt Verbindungen ab, solange eine andere offen ist -> kurz erneut versuchen
+        for ($try = 0; $try < 3; $try++) {
+            $sock = @fsockopen($host, $port, $errno, $errstr, 3);
+            if ($sock !== false) {
+                stream_set_timeout($sock, 3);
+                return $sock;
+            }
+            IPS_Sleep(300);
         }
-        stream_set_timeout($sock, 3);
-        return $sock;
+        $this->SendDebug('Modbus', "Connect fehlgeschlagen: {$errstr} ({$errno})", 0);
+        return false;
     }
 
     /**
@@ -980,8 +1014,17 @@ class StiebelWPL extends IPSModule
         if ($host === '') {
             return 'Bitte zuerst die IP-Adresse konfigurieren.';
         }
-        $sock = $this->mbConnect();
+        if (!IPS_SemaphoreEnter($this->semName(), 5000)) {
+            return 'Modbus-Zugriff belegt, bitte erneut versuchen.';
+        }
+        try {
+            $sock = $this->mbConnect();
+        } catch (Throwable $e) {
+            IPS_SemaphoreLeave($this->semName());
+            throw $e;
+        }
         if ($sock === false) {
+            IPS_SemaphoreLeave($this->semName());
             return 'Keine Verbindung zum ISG.';
         }
 
@@ -1016,6 +1059,7 @@ class StiebelWPL extends IPSModule
             }
         } finally {
             fclose($sock);
+            IPS_SemaphoreLeave($this->semName());
         }
         return $out;
     }

@@ -134,6 +134,12 @@ body.compressor .fangroup{animation:spin 2.6s linear infinite}
 .pinbox input{background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);
   padding:10px;font-size:18px;text-align:center;letter-spacing:6px;outline:none;width:100%}
 .pinbox input:focus{border-color:var(--dim)}
+
+/* Fehler-Toast (alert() wird im IPSView-WebView verschluckt) */
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;
+  background:#3a1518;border:1px solid var(--err);color:#ffd7d7;padding:9px 18px;
+  border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .3s;max-width:90vw}
+#toast.show{opacity:1}
 footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
 @media (max-width:640px){
   .schema svg{max-height:none}
@@ -435,6 +441,7 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
     </div>
   </div>
 </div>
+<div id="toast"></div>
 
 <script>
 'use strict';
@@ -450,6 +457,16 @@ function fmt(k, dec = 1, unit = ' °C') {
 }
 function fmtN(v, dec, unit) {
   return Number(v).toLocaleString('de-DE', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + unit;
+}
+
+// Sichtbare Fehlermeldung (alert() zeigt das IPSView-WebView nicht an)
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
 }
 
 // PIN-Handling: einmal eingegeben, für die Sitzung gemerkt
@@ -491,7 +508,7 @@ async function setVal(ident, value) {
         cachedPin = '';
         sessionStorage.removeItem('swpl_pin');
         delete pending[ident];
-        alert('Falsche PIN.');
+        toast('Falsche PIN');
         load();
         return;
       }
@@ -503,7 +520,7 @@ async function setVal(ident, value) {
     }
   } catch (e) {
     delete pending[ident];
-    alert('Schreiben fehlgeschlagen: ' + e.message);
+    toast('Schreiben fehlgeschlagen – bitte nochmal versuchen (' + e.message + ')');
   }
   setTimeout(load, 1200);
 }
