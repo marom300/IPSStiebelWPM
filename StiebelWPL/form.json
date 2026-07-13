@@ -61,6 +61,16 @@
                     "type": "CheckBox",
                     "name": "EnableDashboard",
                     "caption": "Dashboard-WebHook aktivieren (/hook/stiebelwpl)"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableArchive",
+                    "caption": "Alle Werte automatisch archivieren (Archive Control)"
+                },
+                {
+                    "type": "PasswordTextBox",
+                    "name": "PinCode",
+                    "caption": "PIN für Sollwert-Änderungen im Dashboard (leer = keine PIN-Abfrage)"
                 }
             ]
         }
@@ -75,6 +85,11 @@
             "type": "Button",
             "caption": "Jetzt aktualisieren",
             "onClick": "SWPL_Update($id); echo 'Aktualisierung ausgeführt.';"
+        },
+        {
+            "type": "Button",
+            "caption": "Register-Diagnose (Rohwerte anzeigen)",
+            "onClick": "echo SWPL_DumpRegisters($id);"
         },
         {
             "type": "Label",

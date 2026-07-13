@@ -58,7 +58,11 @@ http://<Symcon-IP>:3777/hook/stiebelwpl
 - Taupunkt-Ampel für die Deckenkühlung (grün ≥ 2 K Reserve, gelb ≥ 1 K, rot darunter)
 - Kacheln: Raumklima, Warmwasser, Kühlung, Heizung, Energie (heute/gesamt inkl.
   Arbeitszahl), Laufzeiten, SG Ready
-- Sollwerte und Betriebsart direkt im Dashboard änderbar (nur wenn Schreibzugriff aktiv)
+- Sollwerte und Betriebsart direkt im Dashboard änderbar (nur wenn Schreibzugriff aktiv);
+  optional mit **PIN-Abfrage** (in der Instanz konfigurierbar, PIN wird pro Sitzung gemerkt)
+- Kacheln „Energie heute/gesamt“, „Laufzeiten“ und „SG Ready“ sind **einklappbar**
+  (Standard: zu, Zustand wird im Gerät gemerkt) – für Tablets ohne Scrollen
+- Werte, die das ISG als „nicht verfügbar“ meldet, werden als „–“ angezeigt
 - Aktualisierung alle 10 s (liest die Symcon-Variablen, kein zusätzlicher Modbus-Verkehr)
 
 Das Dashboard eignet sich unverändert als WebView-Kachel in IPSView / im WebFront.
@@ -73,11 +77,18 @@ Das Dashboard eignet sich unverändert als WebView-Kachel in IPSView / im WebFro
 - Nicht verfügbare Register liefern den Ersatzwert 0x8000 und werden übersprungen
   (Variable behält den letzten Wert).
 
-## Empfehlung Archivierung
+## Archivierung
 
-Für Verlaufsgrafiken lohnt sich die Archivierung (Archive Control) von:
-`Außentemperatur`, `Vorlauf/Rücklauf WP`, `Warmwasser Ist`, `Kühlen Ist`,
-`Wärmemenge/Stromaufnahme heute` (Zählertyp) und `Arbeitszahl heute`.
+Bei aktivierter Option „Alle Werte automatisch archivieren“ (Standard: an) meldet das Modul
+sämtliche Zahlen- und Statusvariablen selbstständig beim Archive Control an –
+es ist nichts weiter einzurichten.
+
+## Diagnose
+
+Der Button **„Register-Diagnose“** in der Instanzkonfiguration liest alle Registerblöcke
+und zeigt die Rohwerte an (n/v = vom ISG als nicht verfügbar gemeldet). Hilfreich, wenn
+einzelne Werte fehlen – z. B. um zu sehen, unter welchem Register die Raumtemperatur
+bei der eigenen Anlage geliefert wird.
 
 ## Projektstruktur
 

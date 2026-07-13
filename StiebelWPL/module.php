@@ -37,6 +37,20 @@ class StiebelWPL extends IPSModule
         'SGIn2'          => [4003, 'bool']
     ];
 
+    // Werte, die das ISG als "nicht verfügbar" melden kann -> im Dashboard nur zeigen,
+    // wenn sie mindestens einmal geliefert wurden (sonst stünde dort fälschlich 0)
+    private const OPTIONAL_VALUES = [
+        'Raumtemperatur', 'RaumtemperaturSoll', 'Raumfeuchte', 'Taupunkt', 'TaupunktReserve',
+        'Aussentemperatur', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
+        'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
+        'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
+        'KuehlIst', 'KuehlSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
+        'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco'
+    ];
+
+    /** @var array<string,bool> im aktuellen Poll gelieferte Idents */
+    private $availNow = [];
+
     public function Create()
     {
         parent::Create();
@@ -50,10 +64,14 @@ class StiebelWPL extends IPSModule
         $this->RegisterPropertyBoolean('EnableSGReady', true);
         $this->RegisterPropertyBoolean('EnableHK2', false);
         $this->RegisterPropertyBoolean('EnableDashboard', true);
+        $this->RegisterPropertyBoolean('EnableArchive', true);
+        $this->RegisterPropertyString('PinCode', '');
 
         // Adress-Offset: manche ISG-Firmwares erwarten Registernummer-1 (Modbus-Konvention),
         // manche die Registernummer direkt. Wird automatisch erkannt. -99 = noch unbekannt.
         $this->RegisterAttributeInteger('AddrOffset', -99);
+        // Idents, die schon mindestens einmal einen echten Wert geliefert haben
+        $this->RegisterAttributeString('AvailIdents', '[]');
 
         $this->RegisterTimer('Update', 0, 'SWPL_Update($_IPS[\'TARGET\']);');
     }
@@ -69,6 +87,7 @@ class StiebelWPL extends IPSModule
 
         $this->RegisterProfiles();
         $this->MaintainVariables();
+        $this->SetupArchive();
 
         if ($this->ReadPropertyBoolean('EnableDashboard')) {
             $this->RegisterHook(self::WEBHOOK);
@@ -112,11 +131,15 @@ class StiebelWPL extends IPSModule
             return false;
         }
 
+        $this->availNow = [];
+
         try {
             $off = $this->detectOffset($sock);
 
             // Block 1: Systemwerte 501..548
             $b1 = $this->mbRead($sock, 4, 501 + $off, 48);
+            // Block 1b: Raumwerte je Heiz-/Kühlkreis 584..608 (Fallback, je nach Regler)
+            $b1b = $this->mbRead($sock, 4, 584 + $off, 25);
             // Block 2: Systemparameter 1501..1516
             $b2 = $this->mbRead($sock, 3, 1501 + $off, 16);
             // Block 3: Systemstatus 2501..2507
@@ -144,13 +167,23 @@ class StiebelWPL extends IPSModule
         }
 
         $this->SetStatus(102);
-        $this->parseBlock1($b1);
+        $this->parseBlock1($b1, $b1b);
         $this->parseBlock2($b2);
         $this->parseBlock3($b3);
         $this->parseBlock4($b4);
         $this->parseSGReady($b5, $b6);
 
         $this->SetValueSafe('LastUpdate', time());
+
+        // Verfügbare Idents dauerhaft merken (fürs Dashboard: nie gelieferte Werte -> "–")
+        $avail = json_decode($this->ReadAttributeString('AvailIdents'), true);
+        if (!is_array($avail)) {
+            $avail = [];
+        }
+        $merged = array_values(array_unique(array_merge($avail, array_keys($this->availNow))));
+        if (count($merged) !== count($avail)) {
+            $this->WriteAttributeString('AvailIdents', json_encode($merged));
+        }
         return true;
     }
 
@@ -269,6 +302,13 @@ class StiebelWPL extends IPSModule
                 echo json_encode(['ok' => false, 'error' => 'invalid ident']);
                 return;
             }
+            $pin = $this->ReadPropertyString('PinCode');
+            if ($pin !== '' && (string) ($payload['pin'] ?? '') !== $pin) {
+                http_response_code(403);
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'PIN']);
+                return;
+            }
             $value = $payload['value'] ?? null;
             try {
                 IPS_RequestAction($this->InstanceID, $ident, $value);
@@ -312,14 +352,26 @@ class StiebelWPL extends IPSModule
             'Regler', 'LastUpdate'
         ];
 
+        $avail = json_decode($this->ReadAttributeString('AvailIdents'), true);
+        if (!is_array($avail)) {
+            $avail = [];
+        }
+        $availSet = array_flip($avail);
+        $optionalSet = array_flip(self::OPTIONAL_VALUES);
+
         $out = [
             'writeEnabled' => $this->ReadPropertyBoolean('EnableWrite'),
+            'pinRequired'  => $this->ReadPropertyString('PinCode') !== '',
             'cooling'      => $this->ReadPropertyBoolean('EnableCooling'),
             'energy'       => $this->ReadPropertyBoolean('EnableEnergy'),
             'sgready'      => $this->ReadPropertyBoolean('EnableSGReady'),
             'hk2'          => $this->ReadPropertyBoolean('EnableHK2')
         ];
         foreach ($idents as $ident) {
+            // Nie gelieferte optionale Werte weglassen -> Dashboard zeigt "–" statt 0
+            if (count($avail) > 0 && isset($optionalSet[$ident]) && !isset($availSet[$ident])) {
+                continue;
+            }
             $vid = @$this->GetIDForIdent($ident);
             if ($vid !== false && $vid > 0) {
                 $out[$ident] = GetValue($vid);
@@ -332,20 +384,22 @@ class StiebelWPL extends IPSModule
     // Register-Parsing
     // =====================================================================
 
-    private function parseBlock1(?array $b): void
+    private function parseBlock1(?array $b, ?array $bb = null): void
     {
         if ($b === null) {
             return;
         }
         $g = fn (int $reg) => $b[$reg - 501] ?? self::NA_RAW;
+        // Raumwerte je Heizkreis (584 ff.), liefert je nach Regler die Werte statt FE7/FEK
+        $gb = fn (int $reg) => ($bb !== null) ? ($bb[$reg - 584] ?? self::NA_RAW) : self::NA_RAW;
 
-        // Raumklima: FEK bevorzugen (liefert Feuchte/Taupunkt), sonst FE7
-        $raumIst = $this->convVal($g(503), 't2') ?? $this->convVal($g(501), 't2');
-        $raumSoll = $this->convVal($g(504), 't2') ?? $this->convVal($g(502), 't2');
+        // Raumklima: FEK bevorzugen (liefert Feuchte/Taupunkt), sonst FE7, sonst Raumwerte HK 1
+        $raumIst = $this->convVal($g(503), 't2') ?? $this->convVal($g(501), 't2') ?? $this->convVal($gb(584), 't2');
+        $raumSoll = $this->convVal($g(504), 't2') ?? $this->convVal($g(502), 't2') ?? $this->convVal($gb(585), 't2');
         $this->SetValueSafe('Raumtemperatur', $raumIst);
         $this->SetValueSafe('RaumtemperaturSoll', $raumSoll);
-        $this->SetValueSafe('Raumfeuchte', $this->convVal($g(505), 't2'));
-        $taupunkt = $this->convVal($g(506), 't2');
+        $this->SetValueSafe('Raumfeuchte', $this->convVal($g(505), 't2') ?? $this->convVal($gb(586), 't2'));
+        $taupunkt = $this->convVal($g(506), 't2') ?? $this->convVal($gb(587), 't2');
         $this->SetValueSafe('Taupunkt', $taupunkt);
 
         $this->SetValueSafe('Aussentemperatur', $this->convVal($g(507), 't2'));
@@ -695,6 +749,7 @@ class StiebelWPL extends IPSModule
         if ($value === null) {
             return;
         }
+        $this->availNow[$ident] = true;
         $vid = @$this->GetIDForIdent($ident);
         if ($vid === false || $vid <= 0) {
             return;
@@ -865,6 +920,97 @@ class StiebelWPL extends IPSModule
         IPS_SetVariableProfileDigits($name, $digits);
         IPS_SetVariableProfileValues($name, $min, $max, $step);
         IPS_SetVariableProfileIcon($name, $icon);
+    }
+
+    // =====================================================================
+    // Archivierung
+    // =====================================================================
+
+    /**
+     * Aktiviert die Archivierung (Archive Control) für alle Zahlen-/Bool-Variablen.
+     */
+    private function SetupArchive(): void
+    {
+        if (!$this->ReadPropertyBoolean('EnableArchive')) {
+            return;
+        }
+        $acIDs = IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}');
+        if (count($acIDs) === 0) {
+            return;
+        }
+        $ac = $acIDs[0];
+        $skip = ['StatusText' => true, 'Regler' => true, 'LastUpdate' => true];
+
+        $changed = false;
+        foreach (IPS_GetChildrenIDs($this->InstanceID) as $cid) {
+            $obj = IPS_GetObject($cid);
+            if ($obj['ObjectType'] !== 2 /* Variable */) {
+                continue;
+            }
+            if (isset($skip[$obj['ObjectIdent']])) {
+                continue;
+            }
+            if (!AC_GetLoggingStatus($ac, $cid)) {
+                AC_SetLoggingStatus($ac, $cid, true);
+                $changed = true;
+            }
+        }
+        if ($changed) {
+            IPS_ApplyChanges($ac);
+        }
+    }
+
+    // =====================================================================
+    // Diagnose
+    // =====================================================================
+
+    /**
+     * Gibt alle relevanten Register als Rohwerte aus (für die Fehlersuche).
+     */
+    public function DumpRegisters(): string
+    {
+        $host = trim($this->ReadPropertyString('Host'));
+        if ($host === '') {
+            return 'Bitte zuerst die IP-Adresse konfigurieren.';
+        }
+        $sock = $this->mbConnect();
+        if ($sock === false) {
+            return 'Keine Verbindung zum ISG.';
+        }
+
+        $out = '';
+        try {
+            $off = $this->detectOffset($sock);
+            $out .= "Adress-Offset: {$off}\n";
+
+            $blocks = [
+                ['Block 1 Systemwerte (Input)', 4, 501, 48],
+                ['Block 1b Raumwerte HK/KK (Input)', 4, 584, 25],
+                ['Block 2 Parameter (Holding)', 3, 1501, 21],
+                ['Block 3 Status (Input)', 4, 2501, 11],
+                ['Block 6 SG/Regler (Input)', 4, 5001, 2]
+            ];
+            foreach ($blocks as [$name, $fc, $start, $qty]) {
+                $out .= "\n== {$name} ==\n";
+                $r = $this->mbRead($sock, $fc, $start + $off, $qty);
+                if ($r === null) {
+                    $out .= "keine Antwort\n";
+                    continue;
+                }
+                foreach ($r as $i => $raw) {
+                    $reg = $start + $i;
+                    if ($raw === self::NA_RAW) {
+                        $out .= sprintf("%d: n/v\n", $reg);
+                    } else {
+                        $signed = ($raw > 0x7FFF) ? $raw - 0x10000 : $raw;
+                        $out .= sprintf("%d: %u  [/10=%.1f  /100=%.2f]\n", $reg, $raw, $signed / 10, $signed / 100);
+                    }
+                }
+            }
+        } finally {
+            fclose($sock);
+        }
+        return $out;
     }
 
     // =====================================================================
