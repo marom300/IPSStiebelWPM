@@ -635,7 +635,7 @@ class StiebelWPL extends IPSModule
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $payload = json_decode(file_get_contents('php://input'), true);
             $ident = (string) ($payload['ident'] ?? '');
-            if (!isset(self::WRITE_MAP[$ident])) {
+            if (!isset(self::WRITE_MAP[$ident]) && !isset(self::SW_WRITE_MAP[$ident])) {
                 http_response_code(400);
                 echo json_encode(['ok' => false, 'error' => 'invalid ident']);
                 return;
