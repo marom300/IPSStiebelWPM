@@ -23,7 +23,9 @@ HTML-Dashboard mit Anlagenschema (Vorlauf/Rücklauf direkt an den Leitungen able
 - Betriebsart (Bereitschaft/Programm/Komfort/ECO/Warmwasser/Notbetrieb)
 - Heizen: Komfort-/ECO-Temperatur, Heizkurven-Steigung
 - Warmwasser: Komfort-/ECO-Temperatur
-- Kühlung: Vorlauf-Soll, Raum-Soll, Hysterese (Flächenkühlung)
+- Kühlung: Vorlauf-Soll, Grenze Kühlen (Außentemperatur-Einschaltgrenze, Reg. 1516 –
+  in der Stiebel-Doku als „Raumsolltemperatur“ geführt, wirkt bei der WPL-A AC aber
+  als Grenze Kühlen), Hysterese (Flächenkühlung)
 - SG Ready: aktiv, Eingang 1/2 (z. B. für PV-Überschusssteuerung → Zustand 3)
 
 ## Installation
@@ -60,8 +62,10 @@ http://<Symcon-IP>:3777/hook/stiebelwpl
   Arbeitszahl), Laufzeiten, SG Ready
 - Sollwerte und Betriebsart direkt im Dashboard änderbar (nur wenn Schreibzugriff aktiv);
   optional mit **PIN-Abfrage** (in der Instanz konfigurierbar, PIN wird pro Sitzung gemerkt)
-- Kacheln „Energie heute/gesamt“, „Laufzeiten“ und „SG Ready“ sind **einklappbar**
-  (Standard: zu, Zustand wird im Gerät gemerkt) – für Tablets ohne Scrollen
+- **Zwei Seiten** über Umschalter im Header (Zustand wird pro Gerät gemerkt):
+  „Anlage“ = Schema + Raumklima/Warmwasser/Kühlung/Heizung,
+  „Details“ = Energie heute/gesamt, Laufzeiten, SG Ready – beide Seiten passen auf ein
+  Tablet ohne Scrollen
 - Werte, die das ISG als „nicht verfügbar“ meldet, werden als „–“ angezeigt
 - Aktualisierung alle 10 s (liest die Symcon-Variablen, kein zusätzlicher Modbus-Verkehr)
 

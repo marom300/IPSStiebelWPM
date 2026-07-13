@@ -816,7 +816,7 @@ class StiebelWPL extends IPSModule
             ['KuehlSoll', 'Kühlen Soll (Fläche)', 2, 'SWPL.TempC', 81, $cool, false],
             ['KuehlVLSoll', 'Kühlen Vorlauf-Soll', 2, 'SWPL.TempKuehlVL', 82, $cool, $cool && $w],
             ['KuehlHysterese', 'Kühlen Hysterese', 2, 'SWPL.Hysterese', 83, $cool, $cool && $w],
-            ['KuehlRaumSoll', 'Kühlen Raum-Soll', 2, 'SWPL.TempKuehlRaum', 84, $cool, $cool && $w],
+            ['KuehlRaumSoll', 'Grenze Kühlen (Außentemperatur)', 2, 'SWPL.TempGrenzeKuehl', 84, $cool, $cool && $w],
 
             ['HK1Komfort', 'Heizen Komfort-Temperatur', 2, 'SWPL.TempHK', 100, true, $w],
             ['HK1Eco', 'Heizen ECO-Temperatur', 2, 'SWPL.TempHK', 101, true, $w],
@@ -858,6 +858,13 @@ class StiebelWPL extends IPSModule
                 $this->MaintainAction($ident, $action);
             }
         }
+
+        // Migration v1.3: Register 1516 wirkt bei der WPL-A AC als "Grenze Kühlen",
+        // nicht als Raumsolltemperatur -> bestehende Variable umbenennen
+        $vid = @$this->GetIDForIdent('KuehlRaumSoll');
+        if ($vid !== false && $vid > 0 && IPS_GetName($vid) === 'Kühlen Raum-Soll') {
+            IPS_SetName($vid, 'Grenze Kühlen (Außentemperatur)');
+        }
     }
 
     private function RegisterProfiles(): void
@@ -868,7 +875,7 @@ class StiebelWPL extends IPSModule
         $this->ProfileFloat('SWPL.TempHK', ' °C', 1, 5, 30, 0.5, 'Temperature');
         $this->ProfileFloat('SWPL.TempWW', ' °C', 1, 10, 60, 0.5, 'Temperature');
         $this->ProfileFloat('SWPL.TempKuehlVL', ' °C', 1, 15, 25, 0.5, 'Snowflake');
-        $this->ProfileFloat('SWPL.TempKuehlRaum', ' °C', 1, 20, 30, 0.5, 'Snowflake');
+        $this->ProfileFloat('SWPL.TempGrenzeKuehl', ' °C', 1, 15, 40, 0.5, 'Snowflake');
         $this->ProfileFloat('SWPL.Hysterese', ' K', 1, 1, 5, 0.5, 'Temperature');
         $this->ProfileFloat('SWPL.Heizkurve', '', 2, 0, 3, 0.05, 'Graph');
         $this->ProfileFloat('SWPL.Druck', ' bar', 2, 0, 0, 0, 'Gauge');

@@ -113,12 +113,16 @@ body.compressor .fangroup{animation:spin 2.6s linear infinite}
 .err-tile{border-color:rgba(255,90,90,.6)}
 .res-ok{color:var(--ok)} .res-warn{color:var(--warn)} .res-bad{color:var(--err)}
 
-/* Einklappbare Kacheln */
-.tile.collapsible h3{cursor:pointer;user-select:none;-webkit-user-select:none}
-.tile.collapsible h3 .chev{margin-left:auto;font-size:10px;color:var(--dim);transition:transform .25s}
-.tile.collapsible.collapsed h3 .chev{transform:rotate(-90deg)}
-.tile.collapsible.collapsed > :not(h3){display:none}
-.tile.collapsible.collapsed{align-self:start}
+/* Seiten-Umschalter */
+.nav{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.nav button{background:none;border:none;color:var(--dim);padding:6px 16px;font-size:clamp(11px,1.5vw,13px);cursor:pointer}
+.nav button.active{background:var(--card2);color:var(--txt);font-weight:600}
+.tiles.tiles-lg{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+#pageAnlage{display:flex;flex-direction:column;gap:10px}
+@media (max-height:1000px){
+  .tile{padding:10px 12px;gap:6px}
+  .hero{font-size:clamp(20px,7cqi,26px)}
+}
 
 /* PIN-Dialog */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:60}
@@ -140,7 +144,11 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
 <div class="app">
 
 <header>
-  <div class="title">Stiebel Eltron WPL<small>Wärmepumpe</small></div>
+  <div class="title">Stiebel Eltron WPL</div>
+  <div class="nav">
+    <button id="navAnlage" onclick="switchPage('anlage')">Anlage</button>
+    <button id="navDetails" onclick="switchPage('details')">Details</button>
+  </div>
   <div class="badges" id="badges"></div>
   <select id="selBetriebsart" onchange="setVal('Betriebsart',parseInt(this.value))">
     <option value="1">Bereitschaft</option>
@@ -152,6 +160,8 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   </select>
   <div class="stamp" id="stamp">–</div>
 </header>
+
+<div id="pageAnlage">
 
 <section class="card schema">
 <svg viewBox="0 0 1100 478" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -331,7 +341,7 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
         <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
       </div>
     </div>
-    <div class="row2"><span class="k sub">Raum-Soll</span>
+    <div class="row2"><span class="k sub">Grenze Kühlen</span>
       <div class="stepper" data-ident="KuehlRaumSoll" data-step="0.5" data-dec="1" data-unit=" °C">
         <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
       </div>
@@ -363,8 +373,15 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
     </div>
   </div>
 
-  <div class="tile collapsible" id="tileEnergieTag">
-    <h3 onclick="toggleTile(this)"><span class="ico">⚡</span>Energie heute<span class="chev">▼</span></h3>
+</section>
+
+</div>
+
+<div id="pageDetails" style="display:none">
+<section class="tiles tiles-lg">
+
+  <div class="tile" id="tileEnergieTag">
+    <h3><span class="ico">⚡</span>Energie heute</h3>
     <div class="kv"><span class="k">Wärme Heizen</span><span class="v" id="t_wmht">–</span></div>
     <div class="kv"><span class="k">Strom Heizen</span><span class="v" id="t_laht">–</span></div>
     <div class="kv"><span class="k">AZ Heizen</span><span class="v" id="t_copht">–</span></div>
@@ -374,8 +391,8 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
     <div class="kv"><span class="k">AZ Warmwasser</span><span class="v" id="t_copwt">–</span></div>
   </div>
 
-  <div class="tile collapsible" id="tileEnergieSum">
-    <h3 onclick="toggleTile(this)"><span class="ico">📊</span>Energie gesamt<span class="chev">▼</span></h3>
+  <div class="tile" id="tileEnergieSum">
+    <h3><span class="ico">📊</span>Energie gesamt</h3>
     <div class="kv"><span class="k">Wärme Heizen</span><span class="v" id="t_wmhs">–</span></div>
     <div class="kv"><span class="k">Strom Heizen</span><span class="v" id="t_lahs">–</span></div>
     <div class="kv"><span class="k">AZ Heizen</span><span class="v" id="t_cophs">–</span></div>
@@ -385,8 +402,8 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
     <div class="kv"><span class="k">AZ Warmwasser</span><span class="v" id="t_copws">–</span></div>
   </div>
 
-  <div class="tile collapsible" id="tileLaufzeit">
-    <h3 onclick="toggleTile(this)"><span class="ico">⏱️</span>Laufzeiten Verdichter<span class="chev">▼</span></h3>
+  <div class="tile" id="tileLaufzeit">
+    <h3><span class="ico">⏱️</span>Laufzeiten Verdichter</h3>
     <div class="kv"><span class="k">Heizen</span><span class="v" id="t_lzh">–</span></div>
     <div class="kv"><span class="k">Warmwasser</span><span class="v" id="t_lzw">–</span></div>
     <div class="kv"><span class="k">Kühlen</span><span class="v" id="t_lzk">–</span></div>
@@ -396,8 +413,8 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
     <div class="kv"><span class="k">Anlagen-VL / RL</span><span class="v" id="t_anlvlrl">–</span></div>
   </div>
 
-  <div class="tile collapsible" id="tileSG">
-    <h3 onclick="toggleTile(this)"><span class="ico">🔌</span>SG Ready &amp; Netz<span class="chev">▼</span></h3>
+  <div class="tile" id="tileSG">
+    <h3><span class="ico">🔌</span>SG Ready &amp; Netz</h3>
     <div class="kv"><span class="k">Zustand</span><span class="v" id="t_sgzustand">–</span></div>
     <div class="kv"><span class="k">EVU-Freigabe</span><span class="v" id="t_evu">–</span></div>
     <div class="row2" style="margin-top:4px">
@@ -409,6 +426,7 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   </div>
 
 </section>
+</div>
 
 <footer id="footinfo">Stiebel Eltron WPL · ISG Modbus TCP</footer>
 </div>
@@ -496,16 +514,15 @@ async function setVal(ident, value) {
   setTimeout(load, 1200);
 }
 
-// Einklappbare Kacheln (Zustand pro Kachel in localStorage, Standard: zu)
-function toggleTile(h) {
-  const t = h.closest('.tile');
-  t.classList.toggle('collapsed');
-  localStorage.setItem('swpl_col_' + t.id, t.classList.contains('collapsed') ? '1' : '0');
+// Seiten-Umschaltung Anlage/Details (Zustand pro Gerät in localStorage)
+function switchPage(p) {
+  $('pageAnlage').style.display = (p === 'details') ? 'none' : '';
+  $('pageDetails').style.display = (p === 'details') ? '' : 'none';
+  $('navAnlage').classList.toggle('active', p !== 'details');
+  $('navDetails').classList.toggle('active', p === 'details');
+  localStorage.setItem('swpl_page', p);
 }
-document.querySelectorAll('.tile.collapsible').forEach(t => {
-  const s = localStorage.getItem('swpl_col_' + t.id);
-  t.classList.toggle('collapsed', s === null ? true : s === '1');
-});
+switchPage(localStorage.getItem('swpl_page') || 'anlage');
 
 // Stepper: lokal zählen, nach kurzer Pause senden
 const stepTimers = {};
