@@ -1230,12 +1230,13 @@ class StiebelWPL extends IPSModule
         $this->ProfileFloat('SWPL.TempC', ' °C', 1, 0, 0, 0, 'Temperature');
         $this->ProfileFloat('SWPL.TempDiff', ' K', 1, 0, 0, 0, 'Temperature');
         $this->ProfileFloat('SWPL.Feuchte', ' %', 1, 0, 100, 0, 'Drops');
-        $this->ProfileFloat('SWPL.TempHK', ' °C', 1, 5, 30, 0.5, 'Temperature');
+        $this->ProfileFloat('SWPL.TempHK', ' °C', 1, 5, 30, 0.1, 'Temperature');
+        // WW-Register (1510/1511) unterstützen lt. Modbus-Doku nur 0,5er-Schritte
         $this->ProfileFloat('SWPL.TempWW', ' °C', 1, 10, 60, 0.5, 'Temperature');
-        $this->ProfileFloat('SWPL.TempKuehlVL', ' °C', 1, 15, 25, 0.5, 'Snowflake');
-        $this->ProfileFloat('SWPL.TempGrenzeKuehl', ' °C', 1, 15, 40, 0.5, 'Snowflake');
-        $this->ProfileFloat('SWPL.TempRaumKuehl', ' °C', 1, 20, 30, 0.5, 'Snowflake');
-        $this->ProfileFloat('SWPL.Hysterese', ' K', 1, 4, 10, 0.5, 'Temperature');
+        $this->ProfileFloat('SWPL.TempKuehlVL', ' °C', 1, 15, 25, 0.1, 'Snowflake');
+        $this->ProfileFloat('SWPL.TempGrenzeKuehl', ' °C', 1, 15, 40, 0.1, 'Snowflake');
+        $this->ProfileFloat('SWPL.TempRaumKuehl', ' °C', 1, 20, 30, 0.1, 'Snowflake');
+        $this->ProfileFloat('SWPL.Hysterese', ' K', 1, 4, 10, 0.1, 'Temperature');
         $this->ProfileFloat('SWPL.Heizkurve', '', 2, 0, 3, 0.05, 'Graph');
         $this->ProfileFloat('SWPL.Druck', ' bar', 2, 0, 0, 0, 'Gauge');
         $this->ProfileFloat('SWPL.Durchfluss', ' l/min', 1, 0, 0, 0, 'Distance');
