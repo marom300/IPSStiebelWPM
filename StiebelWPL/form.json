@@ -1,0 +1,105 @@
+{
+    "elements": [
+        {
+            "type": "ExpansionPanel",
+            "caption": "Verbindung",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "ValidationTextBox",
+                    "name": "Host",
+                    "caption": "IP-Adresse des ISG web"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "Port",
+                    "caption": "Modbus-Port",
+                    "minimum": 1,
+                    "maximum": 65535
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "Interval",
+                    "caption": "Abfrageintervall",
+                    "suffix": " Sekunden",
+                    "minimum": 5,
+                    "maximum": 3600
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Funktionsumfang",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "EnableWrite",
+                    "caption": "Schreibzugriff aktivieren (Betriebsart und Sollwerte änderbar)"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableCooling",
+                    "caption": "Kühlung (Deckenkühlung / Flächenkühlung) einbinden"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableEnergy",
+                    "caption": "Energiedaten (Wärmemenge, Leistungsaufnahme, Laufzeiten, Arbeitszahl)"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableSGReady",
+                    "caption": "SG Ready (Status und Eingänge)"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableHK2",
+                    "caption": "Heizkreis 2 vorhanden"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableDashboard",
+                    "caption": "Dashboard-WebHook aktivieren (/hook/stiebelwpl)"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Verbindung testen",
+            "onClick": "echo SWPL_TestConnection($id);"
+        },
+        {
+            "type": "Button",
+            "caption": "Jetzt aktualisieren",
+            "onClick": "SWPL_Update($id); echo 'Aktualisierung ausgeführt.';"
+        },
+        {
+            "type": "Label",
+            "caption": "Dashboard: http://<Symcon-IP>:3777/hook/stiebelwpl"
+        },
+        {
+            "type": "Label",
+            "caption": "Hinweis: Das Ein-/Ausschalten der Kühlung selbst bietet das ISG nicht per Modbus an (nur Sollwerte). Schalten erfolgt über die Servicewelt bzw. automatisch über 'Grenze Kühlen'."
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Verbunden"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Keine IP-Adresse konfiguriert"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "Verbindung zum ISG fehlgeschlagen"
+        }
+    ]
+}

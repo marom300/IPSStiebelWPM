@@ -1,0 +1,13 @@
+{
+    "id": "{D5FE79E6-689B-482D-9F9C-D40C07BAC206}",
+    "name": "StiebelWPL",
+    "type": 3,
+    "vendor": "Stiebel Eltron",
+    "aliases": [
+        "Stiebel Eltron WPL Wärmepumpe (ISG Modbus TCP)"
+    ],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "SWPL"
+}

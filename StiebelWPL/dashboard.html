@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stiebel WPL – Wärmepumpe</title>
+<style>
+:root{
+  --bg:#0e1217;
+  --card:#161c24;
+  --card2:#1c242e;
+  --line:#2a3441;
+  --txt:#e8edf3;
+  --dim:#8b97a5;
+  --heat:#f4764d;
+  --cool:#4dc3f4;
+  --ww:#f4a94d;
+  --ok:#3ddc84;
+  --warn:#ffd166;
+  --err:#ff5a5a;
+  --pipe-idle:#48535f;
+  --rl:#5b8dbe;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--txt);
+  font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  min-height:100dvh;display:flex;flex-direction:column;
+}
+.app{flex:1;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1500px;margin:0 auto;width:100%}
+
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.title{font-size:clamp(15px,2.2vw,20px);font-weight:700;letter-spacing:.3px}
+.title small{color:var(--dim);font-weight:400;margin-left:6px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.badge{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
+  background:var(--card);border:1px solid var(--line);font-size:clamp(10px,1.4vw,12px);color:var(--dim)}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.badge.on{color:var(--txt);border-color:rgba(61,220,132,.4)}
+.badge.on .dot{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.badge.on.b-heat{border-color:rgba(244,118,77,.5)}   .badge.on.b-heat .dot{background:var(--heat);box-shadow:0 0 6px var(--heat)}
+.badge.on.b-cool{border-color:rgba(77,195,244,.5)}   .badge.on.b-cool .dot{background:var(--cool);box-shadow:0 0 6px var(--cool)}
+.badge.on.b-ww{border-color:rgba(244,169,77,.5)}     .badge.on.b-ww .dot{background:var(--ww);box-shadow:0 0 6px var(--ww)}
+.badge.on.b-err{border-color:rgba(255,90,90,.6);color:#ffb3b3} .badge.on.b-err .dot{background:var(--err);box-shadow:0 0 6px var(--err)}
+select{
+  background:var(--card);color:var(--txt);border:1px solid var(--line);
+  border-radius:9px;padding:6px 10px;font-size:clamp(11px,1.5vw,13px);outline:none;cursor:pointer
+}
+.stamp{color:var(--dim);font-size:11px;white-space:nowrap}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.schema{padding:6px 10px}
+.schema svg{display:block;width:100%;height:auto;max-height:48dvh}
+
+/* ---------- SVG ---------- */
+text{font-family:inherit;fill:var(--txt)}
+.lbl{fill:var(--dim);font-size:13px}
+.lbl-s{fill:var(--dim);font-size:11px}
+.big{font-size:23px;font-weight:700}
+.mid{font-size:16px;font-weight:600}
+.unit-box{fill:var(--card2);stroke:var(--line);stroke-width:1.5;rx:14}
+.panel{fill:var(--card2);stroke:var(--line);stroke-width:1.5}
+.pipe{fill:none;stroke:var(--pipe-idle);stroke-width:9;stroke-linecap:round;stroke-linejoin:round;transition:stroke .6s}
+.pipe.rl-line{stroke:var(--pipe-idle)}
+body.pump .pipe.vl-line{stroke:var(--heat)}
+body.pump .pipe.rl-line{stroke:var(--rl)}
+body.mode-cool .pipe.vl-line{stroke:var(--cool)}
+body.mode-cool .pipe.rl-line{stroke:#7ba7c9}
+.pipe.ww-line{stroke:var(--pipe-idle)}
+body.ww-on .pipe.ww-line{stroke:var(--ww)}
+.flow{fill:none;stroke:rgba(255,255,255,.75);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:5 17;opacity:0;transition:opacity .6s}
+.flow.on{opacity:.85;animation:flowmove 1.4s linear infinite}
+@keyframes flowmove{to{stroke-dashoffset:-22}}
+.chip rect{fill:#0b0f14;stroke:var(--line);stroke-width:1}
+.chip text{font-size:14px;font-weight:600}
+.chip .cl{fill:var(--dim);font-weight:400;font-size:11px}
+.fanblade{fill:#39434f;transition:fill .5s}
+body.compressor .fanblade{fill:#9fb2c4}
+.fangroup{transform-box:fill-box;transform-origin:center}
+body.compressor .fangroup{animation:spin 2.6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tank{fill:url(#tankgrad);stroke:var(--line);stroke-width:1.5}
+.tankww{fill:url(#wwgrad);stroke:var(--line);stroke-width:1.5}
+.valve{fill:#0b0f14;stroke:var(--dim);stroke-width:1.4}
+.dew-ok{fill:var(--ok)} .dew-warn{fill:var(--warn)} .dew-bad{fill:var(--err)}
+
+/* ---------- Kacheln ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;
+  display:flex;flex-direction:column;gap:8px;container-type:inline-size}
+.tile h3{font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;
+  display:flex;align-items:center;gap:6px}
+.tile h3 .ico{font-size:14px}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:13px}
+.kv .k{color:var(--dim)}
+.kv .v{font-weight:600;font-variant-numeric:tabular-nums}
+.hero{font-size:clamp(22px,9cqi,30px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.hero small{font-size:.5em;color:var(--dim);font-weight:400}
+.sub{color:var(--dim);font-size:12px}
+.row2{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.stepper{display:flex;align-items:center;gap:2px;background:var(--card2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.stepper button{background:none;border:none;color:var(--txt);width:30px;height:30px;font-size:16px;cursor:pointer}
+.stepper button:hover{background:var(--line)}
+.stepper button:disabled{color:var(--line);cursor:default}
+.stepper .val{min-width:62px;text-align:center;font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+.toggle{background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--dim);
+  padding:5px 8px;font-size:12px;cursor:pointer;white-space:nowrap;flex:1}
+.toggle.on{color:var(--txt);border-color:rgba(61,220,132,.5);background:rgba(61,220,132,.08)}
+.toggle:disabled{cursor:default;opacity:.5}
+.sep{border-top:1px solid var(--line);margin:2px 0}
+.err-tile{border-color:rgba(255,90,90,.6)}
+.res-ok{color:var(--ok)} .res-warn{color:var(--warn)} .res-bad{color:var(--err)}
+footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
+@media (max-width:640px){
+  .schema svg{max-height:none}
+  .stamp{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="title">Stiebel Eltron WPL<small>Wärmepumpe</small></div>
+  <div class="badges" id="badges"></div>
+  <select id="selBetriebsart" onchange="setVal('Betriebsart',parseInt(this.value))">
+    <option value="1">Bereitschaft</option>
+    <option value="2">Programmbetrieb</option>
+    <option value="3">Komfortbetrieb</option>
+    <option value="4">ECO-Betrieb</option>
+    <option value="5">Warmwasserbetrieb</option>
+    <option value="0">Notbetrieb</option>
+  </select>
+  <div class="stamp" id="stamp">–</div>
+</header>
+
+<section class="card schema">
+<svg viewBox="0 0 1100 478" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="tankgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#33414f"/><stop offset="1" stop-color="#222c37"/>
+    </linearGradient>
+    <linearGradient id="wwgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3a2c"/><stop offset="1" stop-color="#2c2620"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ===== Rohrleitungen (Basis) ===== -->
+  <!-- Vorlauf: WP -> Bus -> Riser -> Kühlung/HK1 -->
+  <path id="p_vl"   class="pipe vl-line" d="M230,210 H760"/>
+  <path id="p_vl_k" class="pipe vl-line" d="M760,210 V90 H840"/>
+  <path id="p_vl_h" class="pipe vl-line" d="M760,210 V285 H840"/>
+  <!-- Rücklauf: Kühlung/HK1 -> Riser -> Bus -> WP -->
+  <path id="p_rl_k" class="pipe rl-line" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
+  <path id="p_rl_h" class="pipe rl-line" d="M840,340 H800"/>
+  <path id="p_rl"   class="pipe rl-line" d="M800,400 H230"/>
+  <!-- Puffer-Anbindung -->
+  <path id="p_puf_o" class="pipe vl-line" d="M465,210 V250"/>
+  <path id="p_puf_u" class="pipe rl-line" d="M465,360 V400"/>
+  <!-- Warmwasser-Kreis -->
+  <path id="p_ww_vl" class="pipe ww-line" d="M310,210 V80 H580"/>
+  <path id="p_ww_rl" class="pipe ww-line" d="M580,165 H340 L340,202 A8,8 0 0 0 340,218 L340,400"/>
+
+  <!-- Fluss-Overlays -->
+  <path id="f_vl"   class="flow" d="M230,210 H760"/>
+  <path id="f_vl_k" class="flow" d="M760,210 V90 H840"/>
+  <path id="f_vl_h" class="flow" d="M760,210 V285 H840"/>
+  <path id="f_rl_k" class="flow" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
+  <path id="f_rl_h" class="flow" d="M840,340 H800"/>
+  <path id="f_rl"   class="flow" d="M800,400 H230"/>
+  <path id="f_ww_vl" class="flow" d="M310,210 V80 H580"/>
+  <path id="f_ww_rl" class="flow" d="M580,165 H340 L340,202 A8,8 0 0 0 340,218 L340,400"/>
+
+  <!-- 3-Wege-Ventil WW -->
+  <g class="valve-g">
+    <circle cx="310" cy="210" r="13" class="valve"/>
+    <path d="M303,204 L317,210 L303,216 Z" fill="var(--dim)"/>
+    <path d="M310,197 L310,206" stroke="var(--dim)" stroke-width="1.6"/>
+  </g>
+
+  <!-- ===== Außeneinheit ===== -->
+  <g>
+    <rect x="40" y="170" width="190" height="250" rx="14" class="unit-box"/>
+    <text x="135" y="196" text-anchor="middle" class="mid">WPL-A AC</text>
+    <g class="fangroup">
+      <circle cx="135" cy="278" r="52" fill="#10151b" stroke="var(--line)" stroke-width="1.5"/>
+      <g id="fan">
+        <path class="fanblade" d="M135,278 C120,258 122,240 135,232 C143,247 143,262 135,278 Z"/>
+        <path class="fanblade" d="M135,278 C158,283 170,270 168,255 C152,255 140,265 135,278 Z"/>
+        <path class="fanblade" d="M135,278 C127,300 108,306 96,297 C104,283 119,276 135,278 Z"/>
+        <circle cx="135" cy="278" r="7" fill="#5c6a79"/>
+      </g>
+    </g>
+    <text x="60" y="356" class="lbl-s">Heißgas</text><text x="210" y="356" text-anchor="end" class="lbl-s" id="v_heissgas">–</text>
+    <text x="60" y="376" class="lbl-s">Niederdruck</text><text x="210" y="376" text-anchor="end" class="lbl-s" id="v_nd">–</text>
+    <text x="60" y="396" class="lbl-s">Hochdruck</text><text x="210" y="396" text-anchor="end" class="lbl-s" id="v_hd">–</text>
+  </g>
+  <!-- Außentemperatur-Chip -->
+  <g class="chip">
+    <rect x="72" y="118" width="126" height="34" rx="17"/>
+    <text x="135" y="140" text-anchor="middle"><tspan class="cl">Außen </tspan><tspan id="v_aussen">–</tspan></text>
+  </g>
+
+  <!-- ===== Chips auf den Leitungen ===== -->
+  <g class="chip">
+    <rect x="352" y="172" width="106" height="30" rx="15"/>
+    <text x="405" y="192" text-anchor="middle"><tspan class="cl">VL </tspan><tspan id="v_vl">–</tspan></text>
+  </g>
+  <g class="chip">
+    <rect x="352" y="418" width="106" height="30" rx="15"/>
+    <text x="405" y="438" text-anchor="middle"><tspan class="cl">RL </tspan><tspan id="v_rl">–</tspan></text>
+  </g>
+  <g class="chip">
+    <rect x="560" y="418" width="130" height="30" rx="15"/>
+    <text x="625" y="438" text-anchor="middle"><tspan id="v_flow">–</tspan></text>
+  </g>
+
+  <!-- ===== Pufferspeicher ===== -->
+  <g>
+    <rect x="428" y="250" width="74" height="110" rx="16" class="tank"/>
+    <text x="465" y="292" text-anchor="middle" class="mid" id="v_puffer">–</text>
+    <text x="465" y="312" text-anchor="middle" class="lbl-s" id="v_puffersoll">Soll –</text>
+    <text x="465" y="345" text-anchor="middle" class="lbl-s">Puffer</text>
+  </g>
+
+  <!-- ===== Warmwasserspeicher ===== -->
+  <g>
+    <rect x="580" y="52" width="130" height="140" rx="18" class="tankww"/>
+    <text x="645" y="78" text-anchor="middle" class="lbl-s">Warmwasser</text>
+    <text x="645" y="112" text-anchor="middle" class="big" id="v_ww">–</text>
+    <text x="645" y="134" text-anchor="middle" class="lbl-s" id="v_wwsoll">Soll –</text>
+    <!-- Wasserhahn-Symbol -->
+    <path d="M676,158 h14 v6 h-6 v10 h-4 v-10 h-4 z" fill="var(--dim)"/>
+  </g>
+
+  <!-- ===== Deckenkühlung ===== -->
+  <g>
+    <rect x="840" y="48" width="230" height="130" rx="14" class="panel"/>
+    <text x="858" y="74" class="lbl">Deckenkühlung</text>
+    <!-- Decke mit Wellen -->
+    <line x1="858" y1="86" x2="1052" y2="86" stroke="var(--cool)" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+    <path d="M870,96 q5,7 0,14 M896,96 q5,7 0,14 M922,96 q5,7 0,14 M948,96 q5,7 0,14 M974,96 q5,7 0,14 M1000,96 q5,7 0,14 M1026,96 q5,7 0,14"
+          stroke="var(--cool)" stroke-width="1.6" fill="none" opacity=".55"/>
+    <text x="858" y="150" class="big" id="v_kuehl_ist">–</text>
+    <text x="1052" y="150" text-anchor="end" class="lbl-s" id="v_kuehl_soll">Soll –</text>
+  </g>
+  <!-- Taupunkt-Badge -->
+  <g class="chip">
+    <rect x="840" y="192" width="230" height="32" rx="16"/>
+    <circle id="dewdot" cx="858" cy="208" r="5" class="dew-ok"/>
+    <text x="870" y="213" font-size="12"><tspan class="cl">Taupunkt </tspan><tspan id="v_taupunkt">–</tspan><tspan class="cl"> · Reserve </tspan><tspan id="v_reserve">–</tspan></text>
+  </g>
+
+  <!-- ===== Heizkreis 1 ===== -->
+  <g>
+    <rect x="840" y="248" width="230" height="130" rx="14" class="panel"/>
+    <text x="858" y="274" class="lbl">Heizkreis 1</text>
+    <!-- Fußbodenheizungs-Schlange -->
+    <path d="M858,288 H1042 A8,8 0 0 1 1042,304 H866 A8,8 0 0 0 866,320 H1048" stroke="var(--heat)" stroke-width="2" fill="none" opacity=".55" stroke-linecap="round"/>
+    <text x="858" y="350" class="big" id="v_hk1_ist">–</text>
+    <text x="1052" y="350" text-anchor="end" class="lbl-s" id="v_hk1_soll">Soll –</text>
+  </g>
+
+  <!-- Raumklima-Chip unten -->
+  <g class="chip">
+    <rect x="840" y="392" width="230" height="32" rx="16"/>
+    <text x="955" y="413" text-anchor="middle" font-size="12"><tspan class="cl">Raum </tspan><tspan id="v_raum">–</tspan><tspan class="cl"> · </tspan><tspan id="v_feuchte">–</tspan></text>
+  </g>
+
+  <!-- Statuszeile unter der Außeneinheit -->
+  <text x="135" y="450" text-anchor="middle" class="lbl" id="v_statustext">–</text>
+
+  <!-- Beschriftung Flussrichtung -->
+  <path d="M600,203 l14,7 l-14,7 Z" fill="rgba(255,255,255,.35)"/>
+  <path d="M620,393 l-14,7 l14,7 Z" fill="rgba(255,255,255,.35)"/>
+</svg>
+</section>
+
+<section class="tiles" id="tiles">
+
+  <div class="tile" id="tileRaum">
+    <h3><span class="ico">🏠</span>Raumklima</h3>
+    <div class="hero"><span id="t_raum">–</span></div>
+    <div class="kv"><span class="k">Soll</span><span class="v" id="t_raumsoll">–</span></div>
+    <div class="kv"><span class="k">Luftfeuchte</span><span class="v" id="t_feuchte">–</span></div>
+    <div class="kv"><span class="k">Taupunkt</span><span class="v" id="t_taupunkt">–</span></div>
+    <div class="kv"><span class="k">Taupunkt-Reserve</span><span class="v" id="t_reserve">–</span></div>
+  </div>
+
+  <div class="tile" id="tileWW">
+    <h3><span class="ico">🚿</span>Warmwasser</h3>
+    <div class="hero"><span id="t_ww">–</span> <small>/ <span id="t_wwsoll">–</span></small></div>
+    <div class="row2"><span class="k sub">Komfort</span>
+      <div class="stepper" data-ident="WWKomfort" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+    <div class="row2"><span class="k sub">ECO</span>
+      <div class="stepper" data-ident="WWEco" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tile" id="tileKuehl">
+    <h3><span class="ico">❄️</span>Kühlung</h3>
+    <div class="hero"><span id="t_kuehlist">–</span> <small>/ <span id="t_kuehlsoll">–</span></small></div>
+    <div class="row2"><span class="k sub">Vorlauf-Soll</span>
+      <div class="stepper" data-ident="KuehlVLSoll" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+    <div class="row2"><span class="k sub">Raum-Soll</span>
+      <div class="stepper" data-ident="KuehlRaumSoll" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+    <div class="row2"><span class="k sub">Hysterese</span>
+      <div class="stepper" data-ident="KuehlHysterese" data-step="0.5" data-dec="1" data-unit=" K">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tile" id="tileHeiz">
+    <h3><span class="ico">🔥</span>Heizung</h3>
+    <div class="hero"><span id="t_hk1ist">–</span> <small>/ <span id="t_hk1soll">–</span></small></div>
+    <div class="row2"><span class="k sub">Komfort</span>
+      <div class="stepper" data-ident="HK1Komfort" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+    <div class="row2"><span class="k sub">ECO</span>
+      <div class="stepper" data-ident="HK1Eco" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+    <div class="row2"><span class="k sub">Heizkurve</span>
+      <div class="stepper" data-ident="Heizkurve" data-step="0.05" data-dec="2" data-unit="">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tile" id="tileEnergieTag">
+    <h3><span class="ico">⚡</span>Energie heute</h3>
+    <div class="kv"><span class="k">Wärme Heizen</span><span class="v" id="t_wmht">–</span></div>
+    <div class="kv"><span class="k">Strom Heizen</span><span class="v" id="t_laht">–</span></div>
+    <div class="kv"><span class="k">AZ Heizen</span><span class="v" id="t_copht">–</span></div>
+    <div class="sep"></div>
+    <div class="kv"><span class="k">Wärme Warmwasser</span><span class="v" id="t_wmwt">–</span></div>
+    <div class="kv"><span class="k">Strom Warmwasser</span><span class="v" id="t_lawt">–</span></div>
+    <div class="kv"><span class="k">AZ Warmwasser</span><span class="v" id="t_copwt">–</span></div>
+  </div>
+
+  <div class="tile" id="tileEnergieSum">
+    <h3><span class="ico">📊</span>Energie gesamt</h3>
+    <div class="kv"><span class="k">Wärme Heizen</span><span class="v" id="t_wmhs">–</span></div>
+    <div class="kv"><span class="k">Strom Heizen</span><span class="v" id="t_lahs">–</span></div>
+    <div class="kv"><span class="k">AZ Heizen</span><span class="v" id="t_cophs">–</span></div>
+    <div class="sep"></div>
+    <div class="kv"><span class="k">Wärme Warmwasser</span><span class="v" id="t_wmws">–</span></div>
+    <div class="kv"><span class="k">Strom Warmwasser</span><span class="v" id="t_laws">–</span></div>
+    <div class="kv"><span class="k">AZ Warmwasser</span><span class="v" id="t_copws">–</span></div>
+  </div>
+
+  <div class="tile" id="tileLaufzeit">
+    <h3><span class="ico">⏱️</span>Laufzeiten Verdichter</h3>
+    <div class="kv"><span class="k">Heizen</span><span class="v" id="t_lzh">–</span></div>
+    <div class="kv"><span class="k">Warmwasser</span><span class="v" id="t_lzw">–</span></div>
+    <div class="kv"><span class="k">Kühlen</span><span class="v" id="t_lzk">–</span></div>
+    <div class="kv"><span class="k">Nachheizung</span><span class="v" id="t_lzn">–</span></div>
+    <div class="sep"></div>
+    <div class="kv"><span class="k">Puffer Ist / Soll</span><span class="v" id="t_puffer2">–</span></div>
+    <div class="kv"><span class="k">Anlagen-VL / RL</span><span class="v" id="t_anlvlrl">–</span></div>
+  </div>
+
+  <div class="tile" id="tileSG">
+    <h3><span class="ico">🔌</span>SG Ready &amp; Netz</h3>
+    <div class="kv"><span class="k">Zustand</span><span class="v" id="t_sgzustand">–</span></div>
+    <div class="kv"><span class="k">EVU-Freigabe</span><span class="v" id="t_evu">–</span></div>
+    <div class="row2" style="margin-top:4px">
+      <button class="toggle" id="btnSGAktiv" onclick="toggleSG(this,'SGAktiv')">SG aktiv</button>
+      <button class="toggle" id="btnSGIn1" onclick="toggleSG(this,'SGIn1')">Eingang 1</button>
+      <button class="toggle" id="btnSGIn2" onclick="toggleSG(this,'SGIn2')">Eingang 2</button>
+    </div>
+    <div class="sub">Eingang 1 = PV-Überschuss (Zustand 3)</div>
+  </div>
+
+</section>
+
+<footer id="footinfo">Stiebel Eltron WPL · ISG Modbus TCP</footer>
+</div>
+
+<script>
+'use strict';
+let D = {};
+const pending = {};   // ident -> Zeitstempel, solange lokale Eingabe Vorrang hat
+
+const $ = id => document.getElementById(id);
+const has = k => D[k] !== undefined && D[k] !== null;
+
+function fmt(k, dec = 1, unit = ' °C') {
+  if (!has(k)) return '–';
+  return Number(D[k]).toLocaleString('de-DE', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + unit;
+}
+function fmtN(v, dec, unit) {
+  return Number(v).toLocaleString('de-DE', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + unit;
+}
+
+async function setVal(ident, value) {
+  pending[ident] = Date.now();
+  try {
+    const r = await fetch(location.pathname, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ident, value})
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Fehler');
+  } catch (e) {
+    delete pending[ident];
+    alert('Schreiben fehlgeschlagen: ' + e.message);
+  }
+  setTimeout(load, 1200);
+}
+
+// Stepper: lokal zählen, nach kurzer Pause senden
+const stepTimers = {};
+function step(btn, dir) {
+  const box = btn.closest('.stepper');
+  const ident = box.dataset.ident;
+  const inc = parseFloat(box.dataset.step);
+  const dec = parseInt(box.dataset.dec);
+  const unit = box.dataset.unit;
+  let cur = box.dataset.cur !== undefined ? parseFloat(box.dataset.cur) : (has(ident) ? Number(D[ident]) : NaN);
+  if (isNaN(cur)) return;
+  cur = Math.round((cur + dir * inc) * 100) / 100;
+  box.dataset.cur = cur;
+  pending[ident] = Date.now();
+  box.querySelector('.val').textContent = fmtN(cur, dec, unit);
+  clearTimeout(stepTimers[ident]);
+  stepTimers[ident] = setTimeout(() => {
+    delete box.dataset.cur;
+    setVal(ident, cur);
+  }, 900);
+}
+
+function toggleSG(btn, ident) {
+  if (!D.writeEnabled) return;
+  setVal(ident, !D[ident]);
+}
+
+function badge(label, on, cls) {
+  return `<span class="badge ${on ? 'on ' + (cls || '') : ''}"><span class="dot"></span>${label}</span>`;
+}
+
+function render() {
+  // Abgelaufene Schreib-Merker entfernen, damit Live-Werte wieder greifen
+  for (const k in pending) {
+    if (Date.now() - pending[k] > 5000) delete pending[k];
+  }
+
+  // Body-Klassen für Rohrfarben/Animationen
+  const heiz = !!D.Heizbetrieb, kuehl = !!D.Kuehlbetrieb, ww = !!D.WWBetrieb, vd = !!D.Verdichter;
+  document.body.classList.toggle('compressor', vd);
+  document.body.classList.toggle('mode-cool', kuehl && !heiz);
+  document.body.classList.toggle('pump', heiz || ww || !!D.HK1Pumpe);
+  document.body.classList.toggle('ww-on', ww);
+
+  // Fluss-Overlays
+  const circActive = vd || heiz || kuehl || ww;
+  ['f_vl', 'f_rl'].forEach(id => $(id).classList.toggle('on', circActive));
+  ['f_vl_k', 'f_rl_k'].forEach(id => $(id).classList.toggle('on', kuehl));
+  ['f_vl_h', 'f_rl_h'].forEach(id => $(id).classList.toggle('on', heiz || (!!D.HK1Pumpe && !kuehl)));
+  ['f_ww_vl', 'f_ww_rl'].forEach(id => $(id).classList.toggle('on', ww));
+
+  // Header
+  let b = '';
+  b += badge('Verdichter', vd);
+  b += badge('Heizen', heiz, 'b-heat');
+  b += badge('Warmwasser', ww, 'b-ww');
+  if (D.cooling !== false) b += badge('Kühlen', kuehl, 'b-cool');
+  b += badge('Abtauen', !!D.Abtauen, 'b-cool');
+  b += badge('Sommer', !!D.Sommerbetrieb);
+  b += badge('EVU', !!D.EVUFreigabe);
+  if (D.Fehler) b += badge('Störung ' + (D.Fehlernummer || ''), true, 'b-err');
+  $('badges').innerHTML = b;
+
+  if (!pending.Betriebsart && has('Betriebsart')) $('selBetriebsart').value = String(D.Betriebsart);
+  $('selBetriebsart').disabled = !D.writeEnabled;
+  if (has('LastUpdate') && D.LastUpdate > 0) {
+    $('stamp').textContent = 'Stand ' + new Date(D.LastUpdate * 1000).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+  }
+
+  // Schema
+  $('v_aussen').textContent = fmt('Aussentemperatur');
+  $('v_vl').textContent = fmt('WPVorlauf');
+  $('v_rl').textContent = fmt('WPRuecklauf');
+  $('v_flow').textContent = has('Volumenstrom') ? fmtN(D.Volumenstrom, 1, ' l/min') : '–';
+  $('v_heissgas').textContent = fmt('Heissgas');
+  $('v_nd').textContent = has('DruckND') ? fmtN(D.DruckND, 2, ' bar') : '–';
+  $('v_hd').textContent = has('DruckHD') ? fmtN(D.DruckHD, 2, ' bar') : '–';
+  $('v_puffer').textContent = fmt('PufferIst');
+  $('v_puffersoll').textContent = 'Soll ' + fmt('PufferSoll');
+  $('v_ww').textContent = fmt('WWIst');
+  $('v_wwsoll').textContent = 'Soll ' + fmt('WWSoll');
+  $('v_kuehl_ist').textContent = fmt('KuehlIst');
+  $('v_kuehl_soll').textContent = 'Soll ' + fmt('KuehlSoll');
+  $('v_hk1_ist').textContent = fmt('HK1Ist');
+  $('v_hk1_soll').textContent = 'Soll ' + fmt('HK1Soll');
+  $('v_taupunkt').textContent = fmt('Taupunkt');
+  $('v_raum').textContent = fmt('Raumtemperatur');
+  $('v_feuchte').textContent = has('Raumfeuchte') ? fmtN(D.Raumfeuchte, 1, ' %') : '–';
+  $('v_statustext').textContent = D.StatusText || '–';
+
+  // Taupunkt-Reserve mit Ampel
+  const dot = $('dewdot');
+  if (has('TaupunktReserve')) {
+    const r = Number(D.TaupunktReserve);
+    $('v_reserve').textContent = (r >= 0 ? '+' : '') + fmtN(r, 1, ' K');
+    dot.setAttribute('class', r >= 2 ? 'dew-ok' : (r >= 1 ? 'dew-warn' : 'dew-bad'));
+  } else {
+    $('v_reserve').textContent = '–';
+  }
+
+  // Kacheln
+  $('t_raum').textContent = fmt('Raumtemperatur');
+  $('t_raumsoll').textContent = fmt('RaumtemperaturSoll');
+  $('t_feuchte').textContent = has('Raumfeuchte') ? fmtN(D.Raumfeuchte, 1, ' %') : '–';
+  $('t_taupunkt').textContent = fmt('Taupunkt');
+  const tr = $('t_reserve');
+  if (has('TaupunktReserve')) {
+    const r = Number(D.TaupunktReserve);
+    tr.textContent = (r >= 0 ? '+' : '') + fmtN(r, 1, ' K');
+    tr.className = 'v ' + (r >= 2 ? 'res-ok' : (r >= 1 ? 'res-warn' : 'res-bad'));
+  } else { tr.textContent = '–'; tr.className = 'v'; }
+
+  $('t_ww').textContent = fmt('WWIst');
+  $('t_wwsoll').textContent = fmt('WWSoll');
+  $('t_kuehlist').textContent = fmt('KuehlIst');
+  $('t_kuehlsoll').textContent = fmt('KuehlSoll');
+  $('t_hk1ist').textContent = fmt('HK1Ist');
+  $('t_hk1soll').textContent = fmt('HK1Soll');
+
+  // Stepper-Werte (nur wenn keine Eingabe aussteht)
+  document.querySelectorAll('.stepper').forEach(box => {
+    const ident = box.dataset.ident;
+    if (!pending[ident] && has(ident)) {
+      box.querySelector('.val').textContent = fmtN(D[ident], parseInt(box.dataset.dec), box.dataset.unit);
+    }
+    box.querySelectorAll('button').forEach(btn => btn.disabled = !D.writeEnabled);
+  });
+
+  // Energie
+  $('t_wmht').textContent = has('WMHeizenTag') ? fmtN(D.WMHeizenTag, 1, ' kWh') : '–';
+  $('t_laht').textContent = has('LAHeizenTag') ? fmtN(D.LAHeizenTag, 1, ' kWh') : '–';
+  $('t_copht').textContent = has('COPHeizenTag') && D.COPHeizenTag > 0 ? fmtN(D.COPHeizenTag, 2, '') : '–';
+  $('t_wmwt').textContent = has('WMWWTag') ? fmtN(D.WMWWTag, 1, ' kWh') : '–';
+  $('t_lawt').textContent = has('LAWWTag') ? fmtN(D.LAWWTag, 1, ' kWh') : '–';
+  $('t_copwt').textContent = has('COPWWTag') && D.COPWWTag > 0 ? fmtN(D.COPWWTag, 2, '') : '–';
+  $('t_wmhs').textContent = has('WMHeizenSum') ? fmtN(D.WMHeizenSum, 3, ' MWh') : '–';
+  $('t_lahs').textContent = has('LAHeizenSum') ? fmtN(D.LAHeizenSum, 3, ' MWh') : '–';
+  $('t_cophs').textContent = has('COPHeizenGesamt') && D.COPHeizenGesamt > 0 ? fmtN(D.COPHeizenGesamt, 2, '') : '–';
+  $('t_wmws').textContent = has('WMWWSum') ? fmtN(D.WMWWSum, 3, ' MWh') : '–';
+  $('t_laws').textContent = has('LAWWSum') ? fmtN(D.LAWWSum, 3, ' MWh') : '–';
+  $('t_copws').textContent = has('COPWWGesamt') && D.COPWWGesamt > 0 ? fmtN(D.COPWWGesamt, 2, '') : '–';
+
+  $('t_lzh').textContent = has('LZHeizen') ? fmtN(D.LZHeizen, 0, ' h') : '–';
+  $('t_lzw').textContent = has('LZWW') ? fmtN(D.LZWW, 0, ' h') : '–';
+  $('t_lzk').textContent = has('LZKuehlen') ? fmtN(D.LZKuehlen, 0, ' h') : '–';
+  $('t_lzn').textContent = has('LZNHZ') ? fmtN(D.LZNHZ, 0, ' h') : '–';
+  $('t_puffer2').textContent = fmt('PufferIst') + ' / ' + fmt('PufferSoll');
+  $('t_anlvlrl').textContent = fmt('VorlaufIst') + ' / ' + fmt('RuecklaufIst');
+
+  // SG Ready
+  const sgMap = {1: '1 – Sperre', 2: '2 – Normal', 3: '3 – Forciert (PV)', 4: '4 – Maximal'};
+  $('t_sgzustand').textContent = has('SGZustand') ? (sgMap[D.SGZustand] || D.SGZustand) : '–';
+  $('t_evu').textContent = has('EVUFreigabe') ? (D.EVUFreigabe ? 'Ja' : 'Gesperrt') : '–';
+  [['btnSGAktiv', 'SGAktiv'], ['btnSGIn1', 'SGIn1'], ['btnSGIn2', 'SGIn2']].forEach(([bid, ident]) => {
+    const btn = $(bid);
+    btn.classList.toggle('on', !!D[ident]);
+    btn.disabled = !D.writeEnabled || !D.sgready;
+  });
+
+  // Kacheln je nach Konfiguration ausblenden
+  $('tileKuehl').style.display = D.cooling === false ? 'none' : '';
+  $('tileEnergieTag').style.display = D.energy === false ? 'none' : '';
+  $('tileEnergieSum').style.display = D.energy === false ? 'none' : '';
+  $('tileSG').style.display = D.sgready === false ? 'none' : '';
+  $('tileRaum').style.display = '';
+
+  document.querySelector('#tileSG').classList.toggle('err-tile', false);
+  $('footinfo').textContent = 'Stiebel Eltron WPL · ISG Modbus TCP' + (D.Regler ? ' · Regler: ' + D.Regler : '');
+}
+
+async function load() {
+  try {
+    const r = await fetch('?data=1', {cache: 'no-store'});
+    if (!r.ok) return;
+    D = await r.json();
+    render();
+  } catch (e) { /* nächster Zyklus */ }
+}
+
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>
