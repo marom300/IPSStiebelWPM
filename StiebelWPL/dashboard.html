@@ -337,10 +337,14 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   <div class="tile" id="tileKuehl">
     <h3><span class="ico">❄️</span>Kühlung</h3>
     <div class="hero"><span id="t_kuehlist">–</span> <small>/ <span id="t_kuehlsoll">–</span> <span id="t_kuehlquelle" class="sub"></span></small></div>
+    <div class="row2"><span class="k sub">Grenze Kühlen (Außen)</span>
+      <div class="stepper" data-ident="KuehlRaumSoll" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
     <div class="kv"><span class="k">Vorlauf-Ist</span><span class="v" id="t_kuehlvl">–</span></div>
     <div class="kv"><span class="k">Taupunkt-Reserve</span><span class="v" id="t_reserve2">–</span></div>
     <div class="kv"><span class="k">Laufzeit Kühlen</span><span class="v" id="t_lzk2">–</span></div>
-    <div class="sub">Sollwerte nur über die Servicewelt änderbar (ISG-Modbus-Limit)</div>
   </div>
 
   <div class="tile" id="tileHeiz">

@@ -76,12 +76,17 @@ Das Dashboard eignet sich unverändert als WebView-Kachel in IPSView / im WebFro
 ### Besonderheit WPMsystem (Reglerkennung 449)
 Beim WPMsystem stellt das ISG die **Kühlkreis-Werte (KK 1) nicht** bereit:
 Ist-/Solltemperatur Kühlen (Reg. 526/527) sowie der KK1-Vorlaufsoll aus der Servicewelt
-sind per Modbus **nicht verfügbar**. Die Kühl-Parameter 1514–1519 sind zwar les-/schreibbar,
-aber **nachweislich nicht mit den echten Einstellungen verknüpft** (per Experiment geprüft:
-Änderung des KK1-Vorlaufsolls und der Grenze Kühlen in der Servicewelt ändert die Register
-nicht) – sie werden vom Modul deshalb nicht abgebildet. Verfügbar sind: Raumwerte über
-Reg. 584–587 und Raumsoll KK 1 (Reg. 604, nur lesbar). Die Kühlung-Kachel im Dashboard ist
-entsprechend rein informativ; Kühl-Sollwerte ändert man über die Servicewelt.
+sind per Modbus **nicht lesbar**. Verfügbar sind: Raumwerte über Reg. 584–587 und
+Raumsoll KK 1 (Reg. 604, nur lesbar).
+
+**Grenze Kühlen über Register 1516** (in der Doku als „Raumsolltemperatur Flächenkühlung“
+geführt): Schreiben ändert nachweislich die echte Einstellung „Grenze Kühlen“ in der
+Anlage (per Experiment verifiziert). Achtung, **Schatten-Register**: Lesen liefert nur den
+zuletzt per Modbus geschriebenen Wert – wird die Grenze in der Servicewelt geändert,
+bekommt Symcon das nicht mit. Empfehlung: die Grenze nur noch über Symcon/Dashboard
+verstellen, dann stimmen Anzeige und Anlage überein.
+Reg. 1514 (Vorlaufsoll) ist beim WPMsystem lesend nicht mit dem KK1-Vorlaufsoll verknüpft;
+ob Schreiben wirkt, ist ungetestet – deshalb nicht im Modul abgebildet.
 
 - **Kühlen EIN/AUS** und die Kühlart (Flächen-/Gebläsekühlung) sind über Modbus
   **nicht schaltbar** – das geht nur in der Servicewelt. Per Modbus änderbar sind die
