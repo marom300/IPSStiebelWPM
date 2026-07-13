@@ -373,7 +373,9 @@ class StiebelWPL extends IPSModule
                 CURLOPT_TIMEOUT        => 30,
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => $payload,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded', 'Connection: close']
+                // 'Expect:' unterdrückt "Expect: 100-continue" - der ISG-Webserver
+                // antwortet darauf mit HTTP 417 statt zu speichern!
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded', 'Connection: close', 'Expect:']
             ]);
             $resp = curl_exec($ch);
             if ($resp === false) {
@@ -382,7 +384,13 @@ class StiebelWPL extends IPSModule
                 $this->SendDebug('Servicewelt', 'save ' . $valName . ' fehlgeschlagen: ' . $this->swLastError, 0);
                 return false;
             }
+            $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             curl_close($ch);
+            if ($status !== 200) {
+                $this->swLastError = 'HTTP ' . $status;
+                $this->SendDebug('Servicewelt', 'save ' . $valName . ' -> HTTP ' . $status . ': ' . substr((string) $resp, 0, 200), 0);
+                return false;
+            }
         } else {
             $ctx = stream_context_create(['http' => [
                 'method'  => 'POST',
@@ -562,7 +570,8 @@ class StiebelWPL extends IPSModule
                 IPS_SemaphoreLeave($this->semNameHttp());
             }
             if (!$ok) {
-                throw new Exception('Servicewelt-Speichern fehlgeschlagen.');
+                throw new Exception('Servicewelt-Speichern fehlgeschlagen' .
+                    ($this->swLastError !== '' ? ' (' . $this->swLastError . ')' : '') . '.');
             }
             $this->SetValueSafe($Ident, ($coding === 'bool') ? (bool) $Value : (float) $Value);
             $this->persistAvail();
