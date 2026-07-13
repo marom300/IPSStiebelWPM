@@ -44,7 +44,7 @@ class StiebelWPL extends IPSModule
         'Aussentemperatur', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
         'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
         'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
-        'KuehlIst', 'KuehlSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
+        'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
         'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco'
     ];
 
@@ -341,7 +341,7 @@ class StiebelWPL extends IPSModule
             'TaupunktReserve', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
             'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
             'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
-            'KuehlIst', 'KuehlSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
+            'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
             'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco',
             'WMHeizenTag', 'WMHeizenSum', 'WMWWTag', 'WMWWSum',
             'LAHeizenTag', 'LAHeizenSum', 'LAWWTag', 'LAWWSum',
@@ -424,6 +424,8 @@ class StiebelWPL extends IPSModule
         if ($this->ReadPropertyBoolean('EnableCooling')) {
             $this->SetValueSafe('KuehlIst', $this->convVal($g(526), 't2'));
             $this->SetValueSafe('KuehlSoll', $this->convVal($g(527), 't2'));
+            // WPMsystem: Raumsolltemperatur Kühlkreis 1 (nur lesbar)
+            $this->SetValueSafe('KuehlKKRaumSoll', $this->convVal($gb(604), 't2'));
         }
 
         // Wärmepumpe 1 Prozessdaten
@@ -814,6 +816,7 @@ class StiebelWPL extends IPSModule
 
             ['KuehlIst', 'Kühlen Ist (Fläche)', 2, 'SWPL.TempC', 80, $cool, false],
             ['KuehlSoll', 'Kühlen Soll (Fläche)', 2, 'SWPL.TempC', 81, $cool, false],
+            ['KuehlKKRaumSoll', 'Kühlen Raum-Soll KK 1', 2, 'SWPL.TempC', 85, $cool, false],
             ['KuehlVLSoll', 'Kühlen Vorlauf-Soll', 2, 'SWPL.TempKuehlVL', 82, $cool, $cool && $w],
             ['KuehlHysterese', 'Kühlen Hysterese', 2, 'SWPL.Hysterese', 83, $cool, $cool && $w],
             ['KuehlRaumSoll', 'Grenze Kühlen (Außentemperatur)', 2, 'SWPL.TempGrenzeKuehl', 84, $cool, $cool && $w],

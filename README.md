@@ -73,6 +73,14 @@ Das Dashboard eignet sich unverändert als WebView-Kachel in IPSView / im WebFro
 
 ## Hinweise / Grenzen der ISG-Modbus-Schnittstelle
 
+### Besonderheit WPMsystem (Reglerkennung 449)
+Beim WPMsystem stellt das ISG die **Kühlkreis-Werte (KK 1) nicht vollständig** bereit:
+Ist-/Solltemperatur Kühlen (Reg. 526/527) sowie der in der Servicewelt eingestellte
+KK1-Vorlaufsoll sind per Modbus **nicht verfügbar**. Verfügbar sind: Raumwerte über
+Reg. 584–587, Raumsoll KK 1 (Reg. 604, nur lesbar) sowie die Parameter 1514/1516
+(deren Zuordnung beim WPMsystem von der Doku abweichen kann). Das Dashboard zeigt
+in der Kühlung-Kachel dann Raum-Ist/Raum-Soll (KK 1).
+
 - **Kühlen EIN/AUS** und die Kühlart (Flächen-/Gebläsekühlung) sind über Modbus
   **nicht schaltbar** – das geht nur in der Servicewelt. Per Modbus änderbar sind die
   Kühl-Sollwerte; die Kühlung selbst startet automatisch oberhalb von „Grenze Kühlen“.

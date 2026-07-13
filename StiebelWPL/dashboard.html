@@ -30,13 +30,13 @@ body{
 }
 .app{flex:1;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:1500px;margin:0 auto;width:100%}
 
-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.title{font-size:clamp(15px,2.2vw,20px);font-weight:700;letter-spacing:.3px}
+header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.title{font-size:clamp(14px,1.8vw,18px);font-weight:700;letter-spacing:.3px;white-space:nowrap}
 .title small{color:var(--dim);font-weight:400;margin-left:6px}
-.badges{display:flex;gap:6px;flex-wrap:wrap;flex:1}
-.badge{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
-  background:var(--card);border:1px solid var(--line);font-size:clamp(10px,1.4vw,12px);color:var(--dim)}
-.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.badges{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.badge{display:flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;white-space:nowrap;
+  background:var(--card);border:1px solid var(--line);font-size:11px;color:var(--dim)}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--line);flex:none}
 .badge.on{color:var(--txt);border-color:rgba(61,220,132,.4)}
 .badge.on .dot{background:var(--ok);box-shadow:0 0 6px var(--ok)}
 .badge.on.b-heat{border-color:rgba(244,118,77,.5)}   .badge.on.b-heat .dot{background:var(--heat);box-shadow:0 0 6px var(--heat)}
@@ -45,9 +45,10 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .badge.on.b-err{border-color:rgba(255,90,90,.6);color:#ffb3b3} .badge.on.b-err .dot{background:var(--err);box-shadow:0 0 6px var(--err)}
 select{
   background:var(--card);color:var(--txt);border:1px solid var(--line);
-  border-radius:9px;padding:6px 10px;font-size:clamp(11px,1.5vw,13px);outline:none;cursor:pointer
+  border-radius:9px;padding:5px 8px;font-size:12px;outline:none;cursor:pointer
 }
 .stamp{color:var(--dim);font-size:11px;white-space:nowrap}
+@media (max-width:1280px){.stamp{display:none}}
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
 .schema{padding:6px 10px}
@@ -114,8 +115,8 @@ body.compressor .fangroup{animation:spin 2.6s linear infinite}
 .res-ok{color:var(--ok)} .res-warn{color:var(--warn)} .res-bad{color:var(--err)}
 
 /* Seiten-Umschalter */
-.nav{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.nav button{background:none;border:none;color:var(--dim);padding:6px 16px;font-size:clamp(11px,1.5vw,13px);cursor:pointer}
+.nav{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
+.nav button{background:none;border:none;color:var(--dim);padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
 .nav button.active{background:var(--card2);color:var(--txt);font-weight:600}
 .tiles.tiles-lg{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 #pageAnlage{display:flex;flex-direction:column;gap:10px}
@@ -335,7 +336,7 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
 
   <div class="tile" id="tileKuehl">
     <h3><span class="ico">❄️</span>Kühlung</h3>
-    <div class="hero"><span id="t_kuehlist">–</span> <small>/ <span id="t_kuehlsoll">–</span></small></div>
+    <div class="hero"><span id="t_kuehlist">–</span> <small>/ <span id="t_kuehlsoll">–</span> <span id="t_kuehlquelle" class="sub"></span></small></div>
     <div class="row2"><span class="k sub">Vorlauf-Soll</span>
       <div class="stepper" data-ident="KuehlVLSoll" data-step="0.5" data-dec="1" data-unit=" °C">
         <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
@@ -604,8 +605,12 @@ function render() {
   $('v_puffersoll').textContent = 'Soll ' + fmt('PufferSoll');
   $('v_ww').textContent = fmt('WWIst');
   $('v_wwsoll').textContent = 'Soll ' + fmt('WWSoll');
-  $('v_kuehl_ist').textContent = fmt('KuehlIst');
-  $('v_kuehl_soll').textContent = 'Soll ' + fmt('KuehlSoll');
+  // Kühlen: 526/527 liefern nicht bei jedem Regler (WPMsystem: n/v) ->
+  // dann Raum-Ist + Raumsoll Kühlkreis 1 anzeigen
+  const kIst = has('KuehlIst') ? 'KuehlIst' : 'Raumtemperatur';
+  const kSoll = has('KuehlSoll') ? 'KuehlSoll' : 'KuehlKKRaumSoll';
+  $('v_kuehl_ist').textContent = fmt(kIst);
+  $('v_kuehl_soll').textContent = 'Soll ' + fmt(kSoll);
   $('v_hk1_ist').textContent = fmt('HK1Ist');
   $('v_hk1_soll').textContent = 'Soll ' + fmt('HK1Soll');
   $('v_taupunkt').textContent = fmt('Taupunkt');
@@ -637,8 +642,9 @@ function render() {
 
   $('t_ww').textContent = fmt('WWIst');
   $('t_wwsoll').textContent = fmt('WWSoll');
-  $('t_kuehlist').textContent = fmt('KuehlIst');
-  $('t_kuehlsoll').textContent = fmt('KuehlSoll');
+  $('t_kuehlist').textContent = fmt(kIst);
+  $('t_kuehlsoll').textContent = fmt(kSoll);
+  $('t_kuehlquelle').textContent = (kIst === 'Raumtemperatur') ? 'Raum (KK 1)' : '';
   $('t_hk1ist').textContent = fmt('HK1Ist');
   $('t_hk1soll').textContent = fmt('HK1Soll');
 
