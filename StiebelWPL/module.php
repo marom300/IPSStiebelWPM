@@ -29,9 +29,6 @@ class StiebelWPL extends IPSModule
         'Heizkurve'      => [1504, 't7'],
         'WWKomfort'      => [1510, 't2'],
         'WWEco'          => [1511, 't2'],
-        'KuehlVLSoll'    => [1514, 't2'],
-        'KuehlHysterese' => [1515, 't2'],
-        'KuehlRaumSoll'  => [1516, 't2'],
         'SGAktiv'        => [4001, 'bool'],
         'SGIn1'          => [4002, 'bool'],
         'SGIn2'          => [4003, 'bool']
@@ -44,7 +41,7 @@ class StiebelWPL extends IPSModule
         'Aussentemperatur', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
         'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
         'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
-        'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
+        'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll',
         'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco'
     ];
 
@@ -341,7 +338,7 @@ class StiebelWPL extends IPSModule
             'TaupunktReserve', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
             'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
             'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
-            'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll', 'KuehlVLSoll', 'KuehlHysterese', 'KuehlRaumSoll',
+            'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll',
             'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco',
             'WMHeizenTag', 'WMHeizenSum', 'WMWWTag', 'WMWWSum',
             'LAHeizenTag', 'LAHeizenSum', 'LAWWTag', 'LAWWSum',
@@ -462,11 +459,8 @@ class StiebelWPL extends IPSModule
         $this->SetValueSafe('WWKomfort', $this->convVal($g(1510), 't2'));
         $this->SetValueSafe('WWEco', $this->convVal($g(1511), 't2'));
 
-        if ($this->ReadPropertyBoolean('EnableCooling')) {
-            $this->SetValueSafe('KuehlVLSoll', $this->convVal($g(1514), 't2'));
-            $this->SetValueSafe('KuehlHysterese', $this->convVal($g(1515), 't2'));
-            $this->SetValueSafe('KuehlRaumSoll', $this->convVal($g(1516), 't2'));
-        }
+        // 1514-1519 (Kühl-Sollwerte lt. Doku) sind beim WPMsystem nachweislich nicht mit den
+        // echten Kühlkreis-/Grundeinstellungen verknüpft -> werden nicht mehr abgebildet
     }
 
     private function parseBlock3(?array $b): void
@@ -816,10 +810,11 @@ class StiebelWPL extends IPSModule
 
             ['KuehlIst', 'Kühlen Ist (Fläche)', 2, 'SWPL.TempC', 80, $cool, false],
             ['KuehlSoll', 'Kühlen Soll (Fläche)', 2, 'SWPL.TempC', 81, $cool, false],
-            ['KuehlKKRaumSoll', 'Kühlen Raum-Soll KK 1', 2, 'SWPL.TempC', 85, $cool, false],
-            ['KuehlVLSoll', 'Kühlen Vorlauf-Soll', 2, 'SWPL.TempKuehlVL', 82, $cool, $cool && $w],
-            ['KuehlHysterese', 'Kühlen Hysterese', 2, 'SWPL.Hysterese', 83, $cool, $cool && $w],
-            ['KuehlRaumSoll', 'Grenze Kühlen (Außentemperatur)', 2, 'SWPL.TempGrenzeKuehl', 84, $cool, $cool && $w],
+            ['KuehlKKRaumSoll', 'Kühlen Raum-Soll KK 1', 2, 'SWPL.TempC', 82, $cool, false],
+            // 1514-1516 beim WPMsystem funktionslos -> Variablen entfernen
+            ['KuehlVLSoll', 'Kühlen Vorlauf-Soll', 2, 'SWPL.TempKuehlVL', 83, false, false],
+            ['KuehlHysterese', 'Kühlen Hysterese', 2, 'SWPL.Hysterese', 84, false, false],
+            ['KuehlRaumSoll', 'Grenze Kühlen (Außentemperatur)', 2, 'SWPL.TempGrenzeKuehl', 85, false, false],
 
             ['HK1Komfort', 'Heizen Komfort-Temperatur', 2, 'SWPL.TempHK', 100, true, $w],
             ['HK1Eco', 'Heizen ECO-Temperatur', 2, 'SWPL.TempHK', 101, true, $w],
@@ -862,12 +857,6 @@ class StiebelWPL extends IPSModule
             }
         }
 
-        // Migration v1.3: Register 1516 wirkt bei der WPL-A AC als "Grenze Kühlen",
-        // nicht als Raumsolltemperatur -> bestehende Variable umbenennen
-        $vid = @$this->GetIDForIdent('KuehlRaumSoll');
-        if ($vid !== false && $vid > 0 && IPS_GetName($vid) === 'Kühlen Raum-Soll') {
-            IPS_SetName($vid, 'Grenze Kühlen (Außentemperatur)');
-        }
     }
 
     private function RegisterProfiles(): void
