@@ -73,6 +73,30 @@
                     "caption": "PIN für Sollwert-Änderungen im Dashboard (leer = keine PIN-Abfrage)"
                 }
             ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Servicewelt-Sync (echte Kühl-Sollwerte)",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "EnableServicewelt",
+                    "caption": "Kühl-Einstellungen über die Servicewelt-Weboberfläche lesen/schreiben"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "SWInterval",
+                    "caption": "Lese-Intervall Servicewelt",
+                    "suffix": " Sekunden",
+                    "minimum": 60,
+                    "maximum": 3600
+                },
+                {
+                    "type": "Label",
+                    "caption": "Beim WPMsystem sind die Kühl-Register per Modbus von den echten Einstellungen entkoppelt. Der Sync liest deshalb Kühlen Ein/Aus, Grenze Kühlen, Vorlauf-/Raum-Soll KK 1 und Kühlen Ist/Soll direkt aus der Weboberfläche und schreibt Änderungen über deren Speichern-Mechanismus."
+                }
+            ]
         }
     ],
     "actions": [
@@ -90,6 +114,11 @@
             "type": "Button",
             "caption": "Register-Diagnose (Rohwerte anzeigen)",
             "onClick": "echo SWPL_DumpRegisters($id);"
+        },
+        {
+            "type": "Button",
+            "caption": "Servicewelt jetzt lesen",
+            "onClick": "echo SWPL_UpdateServicewelt($id) ? 'Servicewelt-Werte aktualisiert.' : 'Servicewelt nicht erreichbar oder deaktiviert.';"
         },
         {
             "type": "Label",

@@ -341,16 +341,25 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   </div>
 
   <div class="tile" id="tileKuehl">
-    <h3><span class="ico">❄️</span>Kühlung</h3>
+    <h3><span class="ico">❄️</span>Kühlung
+      <button class="toggle" id="btnKuehlenEin" style="margin-left:auto;flex:0 0 auto" onclick="setVal('SWKuehlenEin', !D.SWKuehlenEin)">–</button>
+    </h3>
     <div class="hero"><span id="t_kuehlist">–</span> <small>/ <span id="t_kuehlsoll">–</span> <span id="t_kuehlquelle" class="sub"></span></small></div>
     <div class="row2"><span class="k sub">Grenze Kühlen (Außen)</span>
-      <div class="stepper" data-ident="KuehlRaumSoll" data-step="0.5" data-dec="1" data-unit=" °C">
+      <div class="stepper" data-ident="SWGrenzeKuehlen" data-step="0.5" data-dec="1" data-unit=" °C">
         <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
       </div>
     </div>
-    <div class="kv"><span class="k">Vorlauf-Ist</span><span class="v" id="t_kuehlvl">–</span></div>
-    <div class="kv"><span class="k">Taupunkt-Reserve</span><span class="v" id="t_reserve2">–</span></div>
-    <div class="kv"><span class="k">Laufzeit Kühlen</span><span class="v" id="t_lzk2">–</span></div>
+    <div class="row2"><span class="k sub">Vorlauf-Soll</span>
+      <div class="stepper" data-ident="SWKK1VLSoll" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
+    <div class="row2"><span class="k sub">Raum-Soll</span>
+      <div class="stepper" data-ident="SWKK1RaumSoll" data-step="0.5" data-dec="1" data-unit=" °C">
+        <button onclick="step(this,-1)">−</button><span class="val">–</span><button onclick="step(this,1)">+</button>
+      </div>
+    </div>
   </div>
 
   <div class="tile" id="tileHeiz">
@@ -615,10 +624,10 @@ function render() {
   $('v_puffersoll').textContent = 'Soll ' + fmt('PufferSoll');
   $('v_ww').textContent = fmt('WWIst');
   $('v_wwsoll').textContent = 'Soll ' + fmt('WWSoll');
-  // Kühlen: 526/527 liefern nicht bei jedem Regler (WPMsystem: n/v) ->
-  // dann Raum-Ist + Raumsoll Kühlkreis 1 anzeigen
+  // Kühlen: echte Werte kommen vom Servicewelt-Sync; solange der noch nicht
+  // gelaufen ist, Raum-Ist + Raum-Soll KK 1 als Ersatz anzeigen
   const kIst = has('KuehlIst') ? 'KuehlIst' : 'Raumtemperatur';
-  const kSoll = has('KuehlSoll') ? 'KuehlSoll' : 'KuehlKKRaumSoll';
+  const kSoll = has('KuehlSoll') ? 'KuehlSoll' : 'SWKK1RaumSoll';
   $('v_kuehl_ist').textContent = fmt(kIst);
   $('v_kuehl_soll').textContent = 'Soll ' + fmt(kSoll);
   $('v_hk1_ist').textContent = fmt('HK1Ist');
@@ -655,14 +664,16 @@ function render() {
   $('t_kuehlist').textContent = fmt(kIst);
   $('t_kuehlsoll').textContent = fmt(kSoll);
   $('t_kuehlquelle').textContent = (kIst === 'Raumtemperatur') ? 'Raum (KK 1)' : '';
-  $('t_kuehlvl').textContent = fmt('VorlaufIst');
-  $('t_lzk2').textContent = has('LZKuehlen') ? fmtN(D.LZKuehlen, 0, ' h') : '–';
-  const tr2 = $('t_reserve2');
-  if (has('TaupunktReserve')) {
-    const r2 = Number(D.TaupunktReserve);
-    tr2.textContent = (r2 >= 0 ? '+' : '') + fmtN(r2, 1, ' K');
-    tr2.className = 'v ' + (r2 >= 2 ? 'res-ok' : (r2 >= 1 ? 'res-warn' : 'res-bad'));
-  } else { tr2.textContent = '–'; tr2.className = 'v'; }
+
+  // Kühlung Ein/Aus (Servicewelt)
+  const bk = $('btnKuehlenEin');
+  if (D.SWKuehlenEin === undefined || pending.SWKuehlenEin) {
+    if (D.SWKuehlenEin === undefined) { bk.textContent = '–'; bk.disabled = true; bk.classList.remove('on'); }
+  } else {
+    bk.textContent = D.SWKuehlenEin ? 'EIN' : 'AUS';
+    bk.classList.toggle('on', !!D.SWKuehlenEin);
+    bk.disabled = !D.writeEnabled;
+  }
   $('t_hk1ist').textContent = fmt('HK1Ist');
   $('t_hk1soll').textContent = fmt('HK1Soll');
 

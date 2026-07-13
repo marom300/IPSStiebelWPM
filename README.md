@@ -73,20 +73,28 @@ Das Dashboard eignet sich unverändert als WebView-Kachel in IPSView / im WebFro
 
 ## Hinweise / Grenzen der ISG-Modbus-Schnittstelle
 
-### Besonderheit WPMsystem (Reglerkennung 449)
-Beim WPMsystem stellt das ISG die **Kühlkreis-Werte (KK 1) nicht** bereit:
-Ist-/Solltemperatur Kühlen (Reg. 526/527) sowie der KK1-Vorlaufsoll aus der Servicewelt
-sind per Modbus **nicht lesbar**. Verfügbar sind: Raumwerte über Reg. 584–587 und
-Raumsoll KK 1 (Reg. 604, nur lesbar).
+### Besonderheit WPMsystem (Reglerkennung 449) und Servicewelt-Sync
+Beim WPMsystem sind die Kühl-Register der ISG-Modbus-Schnittstelle unbrauchbar:
+Reg. 526/527 (Kühlen Ist/Soll) liefern n/v, und die Parameter 1514–1519 sind von den
+echten Einstellungen entkoppelt (per Experiment verifiziert – Änderungen in der
+Servicewelt erscheinen dort nie, Modbus-Schreibzugriffe landen in einem Schattenwert).
 
-**Grenze Kühlen über Register 1516** (in der Doku als „Raumsolltemperatur Flächenkühlung“
-geführt): Schreiben ändert nachweislich die echte Einstellung „Grenze Kühlen“ in der
-Anlage (per Experiment verifiziert). Achtung, **Schatten-Register**: Lesen liefert nur den
-zuletzt per Modbus geschriebenen Wert – wird die Grenze in der Servicewelt geändert,
-bekommt Symcon das nicht mit. Empfehlung: die Grenze nur noch über Symcon/Dashboard
-verstellen, dann stimmen Anzeige und Anlage überein.
-Reg. 1514 (Vorlaufsoll) ist beim WPMsystem lesend nicht mit dem KK1-Vorlaufsoll verknüpft;
-ob Schreiben wirkt, ist ungetestet – deshalb nicht im Modul abgebildet.
+Das Modul umgeht das mit dem **Servicewelt-Sync**: Es liest die echten Werte direkt aus
+der ISG-Weboberfläche (HTML der Seiten `?s=4,8`, `?s=4,8,1`, `?s=4,8,2`, `?s=1,0`) und
+schreibt Änderungen über deren Speichern-Endpoint (`POST /save.php`):
+
+| Wert                          | Servicewelt-ID | lesbar | schreibbar |
+|-------------------------------|----------------|--------|------------|
+| Kühlung Ein/Aus               | val11042       | ✓      | ✓          |
+| Grenze Kühlen (Außentemp.)    | val457         | ✓      | ✓          |
+| Kühlen Vorlauf-Soll KK 1      | val11064       | ✓      | ✓          |
+| Kühlen Raum-Soll KK 1         | val11065       | ✓      | ✓          |
+| Kühlen Hysterese Vorlauf      | val11059       | ✓      | ✓          |
+| Kühlen Ist-/Solltemperatur    | (Info-Seite)   | ✓      | –          |
+
+Lese-Intervall konfigurierbar (Standard 300 s – die ISG-Weboberfläche ist langsam,
+bitte nicht zu aggressiv pollen). Damit ist auch **Kühlen Ein/Aus aus Symcon schaltbar**,
+was die Modbus-Schnittstelle gar nicht anbietet.
 
 - **Kühlen EIN/AUS** und die Kühlart (Flächen-/Gebläsekühlung) sind über Modbus
   **nicht schaltbar** – das geht nur in der Servicewelt. Per Modbus änderbar sind die

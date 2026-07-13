@@ -29,13 +29,20 @@ class StiebelWPL extends IPSModule
         'Heizkurve'      => [1504, 't7'],
         'WWKomfort'      => [1510, 't2'],
         'WWEco'          => [1511, 't2'],
-        // 1516: lt. Doku "Raumsoll Flächenkühlung", wirkt beim WPMsystem nachweislich als
-        // "Grenze Kühlen". Schreiben ändert die echte Einstellung; Lesen liefert nur den
-        // zuletzt per Modbus geschriebenen Wert (Servicewelt-Änderungen syncen nicht zurück).
-        'KuehlRaumSoll'  => [1516, 't2'],
         'SGAktiv'        => [4001, 'bool'],
         'SGIn1'          => [4002, 'bool'],
         'SGIn2'          => [4003, 'bool']
+    ];
+
+    // Schreibbare Servicewelt-Werte (POST /save.php): Ident => [Wert-ID, Kodierung]
+    // Die Kühl-Einstellungen sind beim WPMsystem NUR über die Servicewelt les- und schreibbar,
+    // die Modbus-Register 1514-1519 sind nachweislich von den echten Einstellungen entkoppelt.
+    private const SW_WRITE_MAP = [
+        'SWKuehlenEin'    => ['val11042', 'bool'],
+        'SWGrenzeKuehlen' => ['val457', 'float'],
+        'SWKK1VLSoll'     => ['val11064', 'float'],
+        'SWKK1RaumSoll'   => ['val11065', 'float'],
+        'SWHysterese'     => ['val11059', 'float']
     ];
 
     // Werte, die das ISG als "nicht verfügbar" melden kann -> im Dashboard nur zeigen,
@@ -45,7 +52,7 @@ class StiebelWPL extends IPSModule
         'Aussentemperatur', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
         'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
         'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
-        'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll', 'KuehlRaumSoll',
+        'KuehlIst', 'KuehlSoll', 'SWKuehlenEin', 'SWGrenzeKuehlen', 'SWKK1VLSoll', 'SWKK1RaumSoll', 'SWHysterese',
         'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco'
     ];
 
@@ -67,6 +74,8 @@ class StiebelWPL extends IPSModule
         $this->RegisterPropertyBoolean('EnableDashboard', true);
         $this->RegisterPropertyBoolean('EnableArchive', true);
         $this->RegisterPropertyString('PinCode', '');
+        $this->RegisterPropertyBoolean('EnableServicewelt', true);
+        $this->RegisterPropertyInteger('SWInterval', 300);
 
         // Adress-Offset: manche ISG-Firmwares erwarten Registernummer-1 (Modbus-Konvention),
         // manche die Registernummer direkt. Wird automatisch erkannt. -99 = noch unbekannt.
@@ -75,6 +84,7 @@ class StiebelWPL extends IPSModule
         $this->RegisterAttributeString('AvailIdents', '[]');
 
         $this->RegisterTimer('Update', 0, 'SWPL_Update($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('SWUpdate', 0, 'SWPL_UpdateServicewelt($_IPS[\'TARGET\']);');
     }
 
     public function ApplyChanges()
@@ -102,6 +112,15 @@ class StiebelWPL extends IPSModule
         }
 
         $this->SetTimerInterval('Update', $this->ReadPropertyInteger('Interval') * 1000);
+
+        // Servicewelt-Sync: erster Lauf kurz nach dem Übernehmen (Seiten sind langsam,
+        // deshalb nicht blockierend hier in ApplyChanges), danach reguläres Intervall
+        if ($this->ReadPropertyBoolean('EnableServicewelt')) {
+            $this->SetTimerInterval('SWUpdate', 10 * 1000);
+        } else {
+            $this->SetTimerInterval('SWUpdate', 0);
+        }
+
         $this->Update();
     }
 
@@ -188,8 +207,15 @@ class StiebelWPL extends IPSModule
         $this->parseSGReady($b5, $b6);
 
         $this->SetValueSafe('LastUpdate', time());
+        $this->persistAvail();
+        return true;
+    }
 
-        // Verfügbare Idents dauerhaft merken (fürs Dashboard: nie gelieferte Werte -> "–")
+    /**
+     * Verfügbare Idents dauerhaft merken (fürs Dashboard: nie gelieferte Werte -> "–").
+     */
+    private function persistAvail(): void
+    {
         $avail = json_decode($this->ReadAttributeString('AvailIdents'), true);
         if (!is_array($avail)) {
             $avail = [];
@@ -198,7 +224,174 @@ class StiebelWPL extends IPSModule
         if (count($merged) !== count($avail)) {
             $this->WriteAttributeString('AvailIdents', json_encode($merged));
         }
-        return true;
+    }
+
+    // =====================================================================
+    // Servicewelt-Sync (HTTP)
+    //
+    // Beim WPMsystem stellt das ISG die echten Kühl-Einstellungen nicht per
+    // Modbus bereit. Die Servicewelt-Seiten enthalten sie aber im HTML
+    // (jsvalues) und lassen sich über POST /save.php auch schreiben.
+    // =====================================================================
+
+    /**
+     * Liest die echten Kühl-Werte aus der Servicewelt-Weboberfläche.
+     */
+    public function UpdateServicewelt(): bool
+    {
+        if (!$this->ReadPropertyBoolean('EnableServicewelt')) {
+            return false;
+        }
+        $host = trim($this->ReadPropertyString('Host'));
+        if ($host === '') {
+            return false;
+        }
+
+        // Nach dem ersten Lauf (10 s nach Übernehmen) aufs reguläre Intervall wechseln
+        $this->SetTimerInterval('SWUpdate', max(60, $this->ReadPropertyInteger('SWInterval')) * 1000);
+
+        if (!IPS_SemaphoreEnter($this->semNameHttp(), 1000)) {
+            return false;
+        }
+        try {
+            $ok = false;
+
+            // Kühlen EIN/AUS
+            $html = $this->swGet('/?s=4,8');
+            if ($html !== null) {
+                $r = $this->swParseRadio($html, 'val11042');
+                if ($r !== null) {
+                    $this->SetValueSafe('SWKuehlenEin', $r === 1);
+                    $ok = true;
+                }
+            }
+
+            // Grundeinstellung: Grenze Kühlen, Hysterese
+            $html = $this->swGet('/?s=4,8,1');
+            if ($html !== null) {
+                $v = $this->swParseJsValues($html);
+                if (isset($v['457'])) {
+                    $this->SetValueSafe('SWGrenzeKuehlen', $v['457']);
+                    $ok = true;
+                }
+                if (isset($v['11059'])) {
+                    $this->SetValueSafe('SWHysterese', $v['11059']);
+                }
+            }
+
+            // Kühlkreis 1: Vorlauf-Soll, Raum-Soll
+            $html = $this->swGet('/?s=4,8,2');
+            if ($html !== null) {
+                $v = $this->swParseJsValues($html);
+                if (isset($v['11064'])) {
+                    $this->SetValueSafe('SWKK1VLSoll', $v['11064']);
+                    $ok = true;
+                }
+                if (isset($v['11065'])) {
+                    $this->SetValueSafe('SWKK1RaumSoll', $v['11065']);
+                }
+            }
+
+            // Anlage-Seite: echte Ist-/Solltemperatur Kühlen
+            $html = $this->swGet('/?s=1,0');
+            if ($html !== null) {
+                $sec = $this->swParseInfoSection($html, 'KÜHLEN');
+                if (isset($sec['ISTTEMPERATUR'])) {
+                    $this->SetValueSafe('KuehlIst', $sec['ISTTEMPERATUR']);
+                    $ok = true;
+                }
+                if (isset($sec['SOLLTEMPERATUR'])) {
+                    $this->SetValueSafe('KuehlSoll', $sec['SOLLTEMPERATUR']);
+                }
+            }
+
+            $this->persistAvail();
+            return $ok;
+        } finally {
+            IPS_SemaphoreLeave($this->semNameHttp());
+        }
+    }
+
+    private function semNameHttp(): string
+    {
+        return 'SWPL_HTTP_' . $this->InstanceID;
+    }
+
+    private function swGet(string $path): ?string
+    {
+        $host = trim($this->ReadPropertyString('Host'));
+        $ctx = stream_context_create(['http' => ['timeout' => 25]]);
+        $html = @file_get_contents('http://' . $host . $path, false, $ctx);
+        if ($html === false) {
+            $this->SendDebug('Servicewelt', 'GET fehlgeschlagen: ' . $path, 0);
+            return null;
+        }
+        return $html;
+    }
+
+    /**
+     * Schreibt einen Wert über den Speichern-Mechanismus der Servicewelt.
+     */
+    private function swWrite(string $valName, string $value): bool
+    {
+        $host = trim($this->ReadPropertyString('Host'));
+        $payload = 'data=' . urlencode(json_encode([['name' => $valName, 'value' => $value]]));
+        $ctx = stream_context_create(['http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content' => $payload,
+            'timeout' => 25
+        ]]);
+        $resp = @file_get_contents('http://' . $host . '/save.php', false, $ctx);
+        $this->SendDebug('Servicewelt', 'save ' . $valName . '=' . $value . ' -> ' . substr((string) $resp, 0, 200), 0);
+        if ($resp === false) {
+            return false;
+        }
+        $j = json_decode($resp, true);
+        if (is_array($j)) {
+            return (($j['success'] ?? false) === true) || (($j['warning'] ?? false) === true);
+        }
+        return strpos($resp, 'success') !== false;
+    }
+
+    /** @return array<string,float> Wert-ID => Zahlenwert */
+    private function swParseJsValues(string $html): array
+    {
+        $out = [];
+        if (preg_match_all("/jsvalues\\['(\\d+)'\\]\\['val'\\]='([^']*)'/", $html, $m, PREG_SET_ORDER)) {
+            foreach ($m as $hit) {
+                $out[$hit[1]] = (float) str_replace(',', '.', $hit[2]);
+            }
+        }
+        return $out;
+    }
+
+    /** Liefert den Wert des angehakten Radio-Buttons (z. B. EIN/AUS) oder null. */
+    private function swParseRadio(string $html, string $valName): ?int
+    {
+        if (preg_match('/name="' . preg_quote($valName, '/') . '" value="(\d+)"[^>]*checked/', $html, $m)) {
+            return (int) $m[1];
+        }
+        return null;
+    }
+
+    /** Liest eine Werte-Tabelle der Info-Seiten (z. B. Abschnitt KÜHLEN auf ?s=1,0). */
+    private function swParseInfoSection(string $html, string $title): array
+    {
+        $out = [];
+        $pos = strpos($html, '>' . $title . '</th>');
+        if ($pos === false) {
+            return $out;
+        }
+        $end = strpos($html, '</table>', $pos);
+        $chunk = substr($html, $pos, ($end === false) ? 4000 : $end - $pos);
+        if (preg_match_all('/<td class="key">([^<]+)<\/td>\s*<td class="value">([^<]+)</s', $chunk, $m, PREG_SET_ORDER)) {
+            foreach ($m as $hit) {
+                $val = str_replace(',', '.', trim($hit[2]));
+                $out[trim($hit[1])] = (float) $val;
+            }
+        }
+        return $out;
     }
 
     /**
@@ -249,11 +442,34 @@ class StiebelWPL extends IPSModule
      */
     public function RequestAction($Ident, $Value)
     {
-        if (!isset(self::WRITE_MAP[$Ident])) {
+        if (!isset(self::WRITE_MAP[$Ident]) && !isset(self::SW_WRITE_MAP[$Ident])) {
             throw new Exception('Unbekannter Ident: ' . $Ident);
         }
         if (!$this->ReadPropertyBoolean('EnableWrite')) {
             $this->LogMessage('Schreibzugriff ist in der Instanzkonfiguration deaktiviert.', KL_WARNING);
+            return;
+        }
+
+        // Servicewelt-Werte werden per HTTP (save.php) geschrieben
+        if (isset(self::SW_WRITE_MAP[$Ident])) {
+            [$valName, $coding] = self::SW_WRITE_MAP[$Ident];
+            $valueStr = ($coding === 'bool')
+                ? ($Value ? '1' : '0')
+                : number_format((float) $Value, 1, ',', '');
+
+            if (!IPS_SemaphoreEnter($this->semNameHttp(), 15000)) {
+                throw new Exception('Servicewelt-Zugriff belegt, bitte erneut versuchen.');
+            }
+            try {
+                $ok = $this->swWrite($valName, $valueStr);
+            } finally {
+                IPS_SemaphoreLeave($this->semNameHttp());
+            }
+            if (!$ok) {
+                throw new Exception('Servicewelt-Speichern fehlgeschlagen.');
+            }
+            $this->SetValueSafe($Ident, ($coding === 'bool') ? (bool) $Value : (float) $Value);
+            $this->persistAvail();
             return;
         }
 
@@ -367,7 +583,7 @@ class StiebelWPL extends IPSModule
             'TaupunktReserve', 'HK1Ist', 'HK1Soll', 'HK2Ist', 'HK2Soll', 'VorlaufIst', 'RuecklaufIst',
             'WPVorlauf', 'WPRuecklauf', 'PufferIst', 'PufferSoll', 'WWIst', 'WWSoll',
             'Heissgas', 'DruckND', 'DruckMD', 'DruckHD', 'Volumenstrom',
-            'KuehlIst', 'KuehlSoll', 'KuehlKKRaumSoll', 'KuehlRaumSoll',
+            'KuehlIst', 'KuehlSoll', 'SWKuehlenEin', 'SWGrenzeKuehlen', 'SWKK1VLSoll', 'SWKK1RaumSoll', 'SWHysterese',
             'HK1Komfort', 'HK1Eco', 'Heizkurve', 'WWKomfort', 'WWEco',
             'WMHeizenTag', 'WMHeizenSum', 'WMWWTag', 'WMWWSum',
             'LAHeizenTag', 'LAHeizenSum', 'LAWWTag', 'LAWWSum',
@@ -448,10 +664,9 @@ class StiebelWPL extends IPSModule
         $this->SetValueSafe('WWSoll', $this->convVal($g(523), 't2'));
 
         if ($this->ReadPropertyBoolean('EnableCooling')) {
+            // Beim WPMsystem n/v -> echte Werte kommen dann aus dem Servicewelt-Sync
             $this->SetValueSafe('KuehlIst', $this->convVal($g(526), 't2'));
             $this->SetValueSafe('KuehlSoll', $this->convVal($g(527), 't2'));
-            // WPMsystem: Raumsolltemperatur Kühlkreis 1 (nur lesbar)
-            $this->SetValueSafe('KuehlKKRaumSoll', $this->convVal($gb(604), 't2'));
         }
 
         // Wärmepumpe 1 Prozessdaten
@@ -488,12 +703,8 @@ class StiebelWPL extends IPSModule
         $this->SetValueSafe('WWKomfort', $this->convVal($g(1510), 't2'));
         $this->SetValueSafe('WWEco', $this->convVal($g(1511), 't2'));
 
-        if ($this->ReadPropertyBoolean('EnableCooling')) {
-            // Grenze Kühlen (1516): Schatten-Register, liefert den zuletzt per Modbus
-            // geschriebenen Wert (kein Rücksync aus der Servicewelt)
-            $this->SetValueSafe('KuehlRaumSoll', $this->convVal($g(1516), 't2'));
-        }
-        // 1514 (Vorlaufsoll) beim WPMsystem: Zuordnung ungeklärt, Schreibtest ausstehend
+        // Kühl-Register 1514-1519 beim WPMsystem von den echten Einstellungen entkoppelt
+        // -> echte Kühl-Sollwerte kommen aus dem Servicewelt-Sync
     }
 
     private function parseBlock3(?array $b): void
@@ -808,6 +1019,7 @@ class StiebelWPL extends IPSModule
         $energy = $this->ReadPropertyBoolean('EnableEnergy');
         $sg = $this->ReadPropertyBoolean('EnableSGReady');
         $hk2 = $this->ReadPropertyBoolean('EnableHK2');
+        $svc = $this->ReadPropertyBoolean('EnableServicewelt');
 
         // [Ident, Name, Typ (0=bool,1=int,2=float,3=string), Profil, Position, anlegen?, Aktion?]
         $vars = [
@@ -852,11 +1064,18 @@ class StiebelWPL extends IPSModule
 
             ['KuehlIst', 'Kühlen Ist (Fläche)', 2, 'SWPL.TempC', 80, $cool, false],
             ['KuehlSoll', 'Kühlen Soll (Fläche)', 2, 'SWPL.TempC', 81, $cool, false],
-            ['KuehlKKRaumSoll', 'Kühlen Raum-Soll KK 1', 2, 'SWPL.TempC', 82, $cool, false],
-            ['KuehlRaumSoll', 'Grenze Kühlen (Außentemperatur)', 2, 'SWPL.TempGrenzeKuehl', 83, $cool, $cool && $w],
-            // 1514/1515 beim WPMsystem funktionslos bzw. ungeklärt -> keine Variablen
-            ['KuehlVLSoll', 'Kühlen Vorlauf-Soll', 2, 'SWPL.TempKuehlVL', 84, false, false],
-            ['KuehlHysterese', 'Kühlen Hysterese', 2, 'SWPL.Hysterese', 85, false, false],
+            // Echte Kühl-Einstellungen über Servicewelt-Sync (Modbus 1514-1519 sind beim
+            // WPMsystem von den echten Werten entkoppelt)
+            ['SWKuehlenEin', 'Kühlung Ein/Aus', 0, '~Switch', 82, $cool && $svc, $cool && $svc && $w],
+            ['SWGrenzeKuehlen', 'Grenze Kühlen (Außentemperatur)', 2, 'SWPL.TempGrenzeKuehl', 83, $cool && $svc, $cool && $svc && $w],
+            ['SWKK1VLSoll', 'Kühlen Vorlauf-Soll KK 1', 2, 'SWPL.TempKuehlVL', 84, $cool && $svc, $cool && $svc && $w],
+            ['SWKK1RaumSoll', 'Kühlen Raum-Soll KK 1', 2, 'SWPL.TempRaumKuehl', 85, $cool && $svc, $cool && $svc && $w],
+            ['SWHysterese', 'Kühlen Hysterese Vorlauf', 2, 'SWPL.Hysterese', 86, $cool && $svc, $cool && $svc && $w],
+            // Altlasten aus den Modbus-Versuchen -> entfernen
+            ['KuehlKKRaumSoll', 'Kühlen Raum-Soll KK 1 (alt)', 2, 'SWPL.TempC', 87, false, false],
+            ['KuehlRaumSoll', 'Grenze Kühlen (alt)', 2, 'SWPL.TempGrenzeKuehl', 88, false, false],
+            ['KuehlVLSoll', 'Kühlen Vorlauf-Soll (alt)', 2, 'SWPL.TempKuehlVL', 89, false, false],
+            ['KuehlHysterese', 'Kühlen Hysterese (alt)', 2, 'SWPL.Hysterese', 90, false, false],
 
             ['HK1Komfort', 'Heizen Komfort-Temperatur', 2, 'SWPL.TempHK', 100, true, $w],
             ['HK1Eco', 'Heizen ECO-Temperatur', 2, 'SWPL.TempHK', 101, true, $w],
@@ -910,7 +1129,8 @@ class StiebelWPL extends IPSModule
         $this->ProfileFloat('SWPL.TempWW', ' °C', 1, 10, 60, 0.5, 'Temperature');
         $this->ProfileFloat('SWPL.TempKuehlVL', ' °C', 1, 15, 25, 0.5, 'Snowflake');
         $this->ProfileFloat('SWPL.TempGrenzeKuehl', ' °C', 1, 15, 40, 0.5, 'Snowflake');
-        $this->ProfileFloat('SWPL.Hysterese', ' K', 1, 1, 5, 0.5, 'Temperature');
+        $this->ProfileFloat('SWPL.TempRaumKuehl', ' °C', 1, 20, 30, 0.5, 'Snowflake');
+        $this->ProfileFloat('SWPL.Hysterese', ' K', 1, 4, 10, 0.5, 'Temperature');
         $this->ProfileFloat('SWPL.Heizkurve', '', 2, 0, 3, 0.05, 'Graph');
         $this->ProfileFloat('SWPL.Druck', ' bar', 2, 0, 0, 0, 'Gauge');
         $this->ProfileFloat('SWPL.Durchfluss', ' l/min', 1, 0, 0, 0, 'Distance');
