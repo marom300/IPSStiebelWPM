@@ -59,6 +59,9 @@ class StiebelWPL extends IPSModule
     /** @var array<string,bool> im aktuellen Poll gelieferte Idents */
     private $availNow = [];
 
+    /** @var string letzter HTTP-Fehler des Servicewelt-Zugriffs */
+    private $swLastError = '';
+
     public function Create()
     {
         parent::Create();
@@ -250,7 +253,8 @@ class StiebelWPL extends IPSModule
         // Nach dem ersten Lauf (10 s nach Übernehmen) aufs reguläre Intervall wechseln
         $this->SetTimerInterval('SWUpdate', max(60, $this->ReadPropertyInteger('SWInterval')) * 1000);
 
-        if (!IPS_SemaphoreEnter($this->semNameHttp(), 1000)) {
+        if (!IPS_SemaphoreEnter($this->semNameHttp(), 30000)) {
+            $this->SendDebug('Servicewelt', 'Sync übersprungen (Zugriff belegt)', 0);
             return false;
         }
         try {
@@ -320,10 +324,33 @@ class StiebelWPL extends IPSModule
     private function swGet(string $path): ?string
     {
         $host = trim($this->ReadPropertyString('Host'));
-        $ctx = stream_context_create(['http' => ['timeout' => 25]]);
-        $html = @file_get_contents('http://' . $host . $path, false, $ctx);
+        $url = 'http://' . $host . $path;
+        $this->swLastError = '';
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_HTTPHEADER     => ['Connection: close']
+            ]);
+            $html = curl_exec($ch);
+            if ($html === false) {
+                $this->swLastError = curl_error($ch);
+                curl_close($ch);
+                $this->SendDebug('Servicewelt', 'GET ' . $path . ' fehlgeschlagen: ' . $this->swLastError, 0);
+                return null;
+            }
+            curl_close($ch);
+            return $html;
+        }
+
+        $ctx = stream_context_create(['http' => ['timeout' => 30]]);
+        $html = @file_get_contents($url, false, $ctx);
         if ($html === false) {
-            $this->SendDebug('Servicewelt', 'GET fehlgeschlagen: ' . $path, 0);
+            $this->swLastError = 'file_get_contents fehlgeschlagen (allow_url_fopen?)';
+            $this->SendDebug('Servicewelt', 'GET ' . $path . ' fehlgeschlagen', 0);
             return null;
         }
         return $html;
@@ -336,22 +363,91 @@ class StiebelWPL extends IPSModule
     {
         $host = trim($this->ReadPropertyString('Host'));
         $payload = 'data=' . urlencode(json_encode([['name' => $valName, 'value' => $value]]));
-        $ctx = stream_context_create(['http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
-            'content' => $payload,
-            'timeout' => 25
-        ]]);
-        $resp = @file_get_contents('http://' . $host . '/save.php', false, $ctx);
-        $this->SendDebug('Servicewelt', 'save ' . $valName . '=' . $value . ' -> ' . substr((string) $resp, 0, 200), 0);
-        if ($resp === false) {
-            return false;
+        $this->swLastError = '';
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init('http://' . $host . '/save.php');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $payload,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded', 'Connection: close']
+            ]);
+            $resp = curl_exec($ch);
+            if ($resp === false) {
+                $this->swLastError = curl_error($ch);
+                curl_close($ch);
+                $this->SendDebug('Servicewelt', 'save ' . $valName . ' fehlgeschlagen: ' . $this->swLastError, 0);
+                return false;
+            }
+            curl_close($ch);
+        } else {
+            $ctx = stream_context_create(['http' => [
+                'method'  => 'POST',
+                'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
+                'content' => $payload,
+                'timeout' => 30
+            ]]);
+            $resp = @file_get_contents('http://' . $host . '/save.php', false, $ctx);
+            if ($resp === false) {
+                return false;
+            }
         }
+
+        $this->SendDebug('Servicewelt', 'save ' . $valName . '=' . $value . ' -> ' . substr((string) $resp, 0, 200), 0);
         $j = json_decode($resp, true);
         if (is_array($j)) {
             return (($j['success'] ?? false) === true) || (($j['warning'] ?? false) === true);
         }
         return strpos($resp, 'success') !== false;
+    }
+
+    /**
+     * Diagnose: prüft alle Servicewelt-Seiten und zeigt die gefundenen Werte.
+     */
+    public function TestServicewelt(): string
+    {
+        $host = trim($this->ReadPropertyString('Host'));
+        if ($host === '') {
+            return 'Bitte zuerst die IP-Adresse konfigurieren.';
+        }
+        if (!IPS_SemaphoreEnter($this->semNameHttp(), 30000)) {
+            return 'Servicewelt-Zugriff belegt (läuft gerade ein Sync?), bitte erneut versuchen.';
+        }
+        try {
+            $out = 'HTTP-Client: ' . (function_exists('curl_init') ? 'cURL' : 'file_get_contents') . "\n\n";
+            $pages = [
+                '/?s=4,8'   => 'Kühlen EIN/AUS',
+                '/?s=4,8,1' => 'Grundeinstellung',
+                '/?s=4,8,2' => 'Kühlkreis 1',
+                '/?s=1,0'   => 'Anlage'
+            ];
+            foreach ($pages as $path => $name) {
+                $t = microtime(true);
+                $html = $this->swGet($path);
+                $ms = (int) round((microtime(true) - $t) * 1000);
+                if ($html === null) {
+                    $out .= "{$name} ({$path}): FEHLER nach {$ms} ms – {$this->swLastError}\n";
+                    continue;
+                }
+                $out .= "{$name} ({$path}): OK, " . strlen($html) . " Bytes, {$ms} ms\n";
+                foreach ($this->swParseJsValues($html) as $id => $val) {
+                    $out .= "   val{$id} = {$val}\n";
+                }
+                $r = $this->swParseRadio($html, 'val11042');
+                if ($r !== null) {
+                    $out .= "   val11042 (Kühlen EIN/AUS) = {$r}\n";
+                }
+                foreach ($this->swParseInfoSection($html, 'KÜHLEN') as $k => $val) {
+                    $out .= "   KÜHLEN {$k} = {$val}\n";
+                }
+            }
+            return $out;
+        } finally {
+            IPS_SemaphoreLeave($this->semNameHttp());
+        }
     }
 
     /** @return array<string,float> Wert-ID => Zahlenwert */

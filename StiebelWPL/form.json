@@ -118,7 +118,12 @@
         {
             "type": "Button",
             "caption": "Servicewelt jetzt lesen",
-            "onClick": "echo SWPL_UpdateServicewelt($id) ? 'Servicewelt-Werte aktualisiert.' : 'Servicewelt nicht erreichbar oder deaktiviert.';"
+            "onClick": "echo SWPL_UpdateServicewelt($id) ? 'Servicewelt-Werte aktualisiert.' : 'Fehlgeschlagen – bitte Servicewelt-Diagnose ausführen.';"
+        },
+        {
+            "type": "Button",
+            "caption": "Servicewelt-Diagnose",
+            "onClick": "echo SWPL_TestServicewelt($id);"
         },
         {
             "type": "Label",
