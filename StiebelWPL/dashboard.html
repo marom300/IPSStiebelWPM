@@ -63,12 +63,17 @@ text{font-family:inherit;fill:var(--txt)}
 .unit-box{fill:var(--card2);stroke:var(--line);stroke-width:1.5;rx:14}
 .panel{fill:var(--card2);stroke:var(--line);stroke-width:1.5}
 .pipe{fill:none;stroke:var(--pipe-idle);stroke-width:9;stroke-linecap:round;stroke-linejoin:round;transition:stroke .6s}
-.pipe.rl-line{stroke:var(--pipe-idle)}
-body.pump .pipe.vl-line{stroke:var(--heat)}
-body.pump .pipe.rl-line{stroke:var(--rl)}
-body.mode-cool .pipe.vl-line{stroke:var(--cool)}
-body.mode-cool .pipe.rl-line{stroke:#7ba7c9}
-.pipe.ww-line{stroke:var(--pipe-idle)}
+/* WP-Kreis (Wärmepumpe bis 3-Wege-Ventil) */
+body.wp-on .pipe.vl-line{stroke:var(--heat)}
+body.wp-on .pipe.rl-line{stroke:var(--rl)}
+body.wp-on.mode-cool .pipe.vl-line{stroke:var(--cool)}
+body.wp-on.mode-cool .pipe.rl-line{stroke:#7ba7c9}
+/* Verteilkreis (hinter dem Ventil: Puffer, Heizkreis, Kühlung) */
+body.dist-heat .pipe.vl-dist{stroke:var(--heat)}
+body.dist-heat .pipe.rl-dist{stroke:var(--rl)}
+body.dist-cool .pipe.vl-dist{stroke:var(--cool)}
+body.dist-cool .pipe.rl-dist{stroke:#7ba7c9}
+/* Warmwasser-Ladekreis */
 body.ww-on .pipe.ww-line{stroke:var(--ww)}
 .flow{fill:none;stroke:rgba(255,255,255,.75);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;
   stroke-dasharray:5 17;opacity:0;transition:opacity .6s}
@@ -85,7 +90,7 @@ body.compressor .fangroup{animation:spin 2.6s linear infinite}
 .tank{fill:url(#tankgrad);stroke:var(--line);stroke-width:1.5}
 .tankww{fill:url(#wwgrad);stroke:var(--line);stroke-width:1.5}
 .valve{fill:#0b0f14;stroke:var(--dim);stroke-width:1.4}
-.dew-ok{fill:var(--ok)} .dew-warn{fill:var(--warn)} .dew-bad{fill:var(--err)}
+.dew-ok{fill:var(--ok)} .dew-warn{fill:var(--warn)} .dew-bad{fill:var(--err)} .dew-idle{fill:var(--pipe-idle)}
 
 /* ---------- Kacheln ---------- */
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px}
@@ -182,28 +187,32 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   </defs>
 
   <!-- ===== Rohrleitungen (Basis) ===== -->
-  <!-- Vorlauf: WP -> Bus -> Riser -> Kühlung/HK1 -->
-  <path id="p_vl"   class="pipe vl-line" d="M230,210 H760"/>
-  <path id="p_vl_k" class="pipe vl-line" d="M760,210 V90 H840"/>
-  <path id="p_vl_h" class="pipe vl-line" d="M760,210 V285 H840"/>
-  <!-- Rücklauf: Kühlung/HK1 -> Riser -> Bus -> WP -->
-  <path id="p_rl_k" class="pipe rl-line" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
-  <path id="p_rl_h" class="pipe rl-line" d="M840,340 H800"/>
-  <path id="p_rl"   class="pipe rl-line" d="M800,400 H230"/>
+  <!-- WP-Kreis: Wärmepumpe bis 3-Wege-Ventil -->
+  <path id="p_vl"   class="pipe vl-line" d="M230,210 H310"/>
+  <path id="p_rl"   class="pipe rl-line" d="M340,400 H230"/>
+  <!-- Verteilkreis: Ventil -> Puffer -> Riser -> Kühlung/HK1 -->
+  <path id="p_vl_d" class="pipe vl-dist" d="M310,210 H760"/>
+  <path id="p_vl_k" class="pipe vl-dist" d="M760,210 V90 H840"/>
+  <path id="p_vl_h" class="pipe vl-dist" d="M760,210 V285 H840"/>
+  <path id="p_rl_k" class="pipe rl-dist" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
+  <path id="p_rl_h" class="pipe rl-dist" d="M840,340 H800"/>
+  <path id="p_rl_d" class="pipe rl-dist" d="M800,400 H340"/>
   <!-- Puffer-Anbindung -->
-  <path id="p_puf_o" class="pipe vl-line" d="M465,210 V250"/>
-  <path id="p_puf_u" class="pipe rl-line" d="M465,360 V400"/>
+  <path id="p_puf_o" class="pipe vl-dist" d="M465,210 V250"/>
+  <path id="p_puf_u" class="pipe rl-dist" d="M465,360 V400"/>
   <!-- Warmwasser-Kreis -->
   <path id="p_ww_vl" class="pipe ww-line" d="M310,210 V80 H580"/>
   <path id="p_ww_rl" class="pipe ww-line" d="M580,165 H340 L340,202 A8,8 0 0 0 340,218 L340,400"/>
 
   <!-- Fluss-Overlays -->
-  <path id="f_vl"   class="flow" d="M230,210 H760"/>
+  <path id="f_vl"   class="flow" d="M230,210 H310"/>
+  <path id="f_rl"   class="flow" d="M340,400 H230"/>
+  <path id="f_vl_d" class="flow" d="M310,210 H760"/>
   <path id="f_vl_k" class="flow" d="M760,210 V90 H840"/>
   <path id="f_vl_h" class="flow" d="M760,210 V285 H840"/>
   <path id="f_rl_k" class="flow" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
   <path id="f_rl_h" class="flow" d="M840,340 H800"/>
-  <path id="f_rl"   class="flow" d="M800,400 H230"/>
+  <path id="f_rl_d" class="flow" d="M800,400 H340"/>
   <path id="f_ww_vl" class="flow" d="M310,210 V80 H580"/>
   <path id="f_ww_rl" class="flow" d="M580,165 H340 L340,202 A8,8 0 0 0 340,218 L340,400"/>
 
@@ -241,12 +250,12 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
 
   <!-- ===== Chips auf den Leitungen ===== -->
   <g class="chip">
-    <rect x="352" y="172" width="106" height="30" rx="15"/>
-    <text x="405" y="192" text-anchor="middle"><tspan class="cl">VL </tspan><tspan id="v_vl">–</tspan></text>
+    <rect x="240" y="164" width="106" height="30" rx="15"/>
+    <text x="293" y="184" text-anchor="middle"><tspan class="cl">VL </tspan><tspan id="v_vl">–</tspan></text>
   </g>
   <g class="chip">
-    <rect x="352" y="418" width="106" height="30" rx="15"/>
-    <text x="405" y="438" text-anchor="middle"><tspan class="cl">RL </tspan><tspan id="v_rl">–</tspan></text>
+    <rect x="240" y="418" width="106" height="30" rx="15"/>
+    <text x="293" y="438" text-anchor="middle"><tspan class="cl">RL </tspan><tspan id="v_rl">–</tspan></text>
   </g>
   <g class="chip">
     <rect x="560" y="418" width="130" height="30" rx="15"/>
@@ -582,16 +591,24 @@ function render() {
 
   // Body-Klassen für Rohrfarben/Animationen
   const heiz = !!D.Heizbetrieb, kuehl = !!D.Kuehlbetrieb, ww = !!D.WWBetrieb, vd = !!D.Verdichter;
+  const pumpe = !!D.HK1Pumpe;
   document.body.classList.toggle('compressor', vd);
+  // WP-Kreis: aktiv, sobald die Wärmepumpe irgendetwas macht
+  const wpActive = vd || heiz || ww || kuehl;
+  document.body.classList.toggle('wp-on', wpActive);
   document.body.classList.toggle('mode-cool', kuehl && !heiz);
-  document.body.classList.toggle('pump', heiz || ww || !!D.HK1Pumpe);
+  // Verteilkreis: nur wenn tatsächlich Richtung Puffer/Heizkreis/Kühlung zirkuliert
+  // (bei reiner WW-Ladung schickt das 3-Wege-Ventil alles zum Speicher)
+  const distActive = heiz || kuehl || pumpe;
+  document.body.classList.toggle('dist-heat', (heiz || pumpe) && !kuehl);
+  document.body.classList.toggle('dist-cool', kuehl);
   document.body.classList.toggle('ww-on', ww);
 
   // Fluss-Overlays
-  const circActive = vd || heiz || kuehl || ww;
-  ['f_vl', 'f_rl'].forEach(id => $(id).classList.toggle('on', circActive));
+  ['f_vl', 'f_rl'].forEach(id => $(id).classList.toggle('on', wpActive));
+  ['f_vl_d', 'f_rl_d'].forEach(id => $(id).classList.toggle('on', distActive));
   ['f_vl_k', 'f_rl_k'].forEach(id => $(id).classList.toggle('on', kuehl));
-  ['f_vl_h', 'f_rl_h'].forEach(id => $(id).classList.toggle('on', heiz || (!!D.HK1Pumpe && !kuehl)));
+  ['f_vl_h', 'f_rl_h'].forEach(id => $(id).classList.toggle('on', heiz || (pumpe && !kuehl)));
   ['f_ww_vl', 'f_ww_rl'].forEach(id => $(id).classList.toggle('on', ww));
 
   // Header
@@ -637,14 +654,16 @@ function render() {
   $('v_feuchte').textContent = has('Raumfeuchte') ? fmtN(D.Raumfeuchte, 1, ' %') : '–';
   $('v_statustext').textContent = D.StatusText || '–';
 
-  // Taupunkt-Reserve mit Ampel
+  // Taupunkt-Reserve mit Ampel — nur im Kühlbetrieb aussagekräftig
+  // (sonst rechnet sie mit dem heißen Heiz-/WW-Vorlauf)
   const dot = $('dewdot');
-  if (has('TaupunktReserve')) {
+  if (has('TaupunktReserve') && kuehl) {
     const r = Number(D.TaupunktReserve);
     $('v_reserve').textContent = (r >= 0 ? '+' : '') + fmtN(r, 1, ' K');
     dot.setAttribute('class', r >= 2 ? 'dew-ok' : (r >= 1 ? 'dew-warn' : 'dew-bad'));
   } else {
     $('v_reserve').textContent = '–';
+    dot.setAttribute('class', 'dew-idle');
   }
 
   // Kacheln
@@ -653,7 +672,7 @@ function render() {
   $('t_feuchte').textContent = has('Raumfeuchte') ? fmtN(D.Raumfeuchte, 1, ' %') : '–';
   $('t_taupunkt').textContent = fmt('Taupunkt');
   const tr = $('t_reserve');
-  if (has('TaupunktReserve')) {
+  if (has('TaupunktReserve') && kuehl) {
     const r = Number(D.TaupunktReserve);
     tr.textContent = (r >= 0 ? '+' : '') + fmtN(r, 1, ' K');
     tr.className = 'v ' + (r >= 2 ? 'res-ok' : (r >= 1 ? 'res-warn' : 'res-bad'));
