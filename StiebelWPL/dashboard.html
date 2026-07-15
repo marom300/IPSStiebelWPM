@@ -68,11 +68,16 @@ body.wp-on .pipe.vl-line{stroke:var(--heat)}
 body.wp-on .pipe.rl-line{stroke:var(--rl)}
 body.wp-on.mode-cool .pipe.vl-line{stroke:var(--cool)}
 body.wp-on.mode-cool .pipe.rl-line{stroke:#7ba7c9}
-/* Verteilkreis (hinter dem Ventil: Puffer, Heizkreis, Kühlung) */
+/* Verteilkreis – gemeinsamer Strang (Trunk, Riser, Puffer): Farbe nach aktivem Modus */
 body.dist-heat .pipe.vl-dist{stroke:var(--heat)}
 body.dist-heat .pipe.rl-dist{stroke:var(--rl)}
 body.dist-cool .pipe.vl-dist{stroke:var(--cool)}
 body.dist-cool .pipe.rl-dist{stroke:#7ba7c9}
+/* Abzweige nur im eigenen Modus einfärben, sonst grau (inaktiver Ast) */
+body.dist-cool .pipe.br-cool-vl{stroke:var(--cool)}
+body.dist-cool .pipe.br-cool-rl{stroke:#7ba7c9}
+body.dist-heat .pipe.br-heat-vl{stroke:var(--heat)}
+body.dist-heat .pipe.br-heat-rl{stroke:var(--rl)}
 /* Warmwasser-Ladekreis */
 body.ww-on .pipe.ww-line{stroke:var(--ww)}
 .flow{fill:none;stroke:rgba(255,255,255,.75);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;
@@ -199,13 +204,16 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   <!-- WP-Kreis: Wärmepumpe bis 3-Wege-Ventil -->
   <path id="p_vl"   class="pipe vl-line" d="M230,210 H310"/>
   <path id="p_rl"   class="pipe rl-line" d="M340,400 H230"/>
-  <!-- Verteilkreis: Ventil -> Puffer -> Riser -> Kühlung/HK1 -->
-  <path id="p_vl_d" class="pipe vl-dist" d="M310,210 H760"/>
-  <path id="p_vl_k" class="pipe vl-dist" d="M760,210 V90 H840"/>
-  <path id="p_vl_h" class="pipe vl-dist" d="M760,210 V285 H840"/>
-  <path id="p_rl_k" class="pipe rl-dist" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
-  <path id="p_rl_h" class="pipe rl-dist" d="M840,340 H800"/>
-  <path id="p_rl_d" class="pipe rl-dist" d="M800,400 H340"/>
+  <!-- Verteilkreis: gemeinsamer Strang (Ventil -> Puffer -> Riser -> Trunk), nach Modus gefärbt -->
+  <path id="p_vl_d"     class="pipe vl-dist" d="M310,210 H760"/>
+  <path id="p_rl_riser" class="pipe rl-dist" d="M800,140 L800,277 A8,8 0 0 0 800,293 L800,400"/>
+  <path id="p_rl_d"     class="pipe rl-dist" d="M800,400 H340"/>
+  <!-- Kühl-Abzweig (nur im Kühlbetrieb gefärbt) -->
+  <path id="p_vl_k" class="pipe br-cool-vl" d="M760,210 V90 H840"/>
+  <path id="p_rl_k" class="pipe br-cool-rl" d="M840,140 H800"/>
+  <!-- Heiz-Abzweig (nur im Heizbetrieb gefärbt) -->
+  <path id="p_vl_h" class="pipe br-heat-vl" d="M760,210 V285 H840"/>
+  <path id="p_rl_h" class="pipe br-heat-rl" d="M840,340 H800"/>
   <!-- Puffer-Anbindung -->
   <path id="p_puf_o" class="pipe vl-dist" d="M465,210 V250"/>
   <path id="p_puf_u" class="pipe rl-dist" d="M465,360 V400"/>
@@ -220,7 +228,7 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   <path id="f_vl_k" class="flow" d="M760,210 V90 H840"/>
   <path id="f_vl_h" class="flow" d="M760,210 V285 H840"/>
   <path id="f_rl_k" class="flow" d="M840,140 H800 L800,277 A8,8 0 0 0 800,293 L800,400"/>
-  <path id="f_rl_h" class="flow" d="M840,340 H800"/>
+  <path id="f_rl_h" class="flow" d="M840,340 H800 V400"/>
   <path id="f_rl_d" class="flow" d="M800,400 H340"/>
   <path id="f_ww_vl" class="flow" d="M310,210 V80 H580"/>
   <path id="f_ww_rl" class="flow" d="M580,165 H340 L340,202 A8,8 0 0 0 340,218 L340,400"/>
