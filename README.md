@@ -61,7 +61,10 @@ http://<Symcon-IP>:3777/hook/stiebelwpl
 - Kacheln: Raumklima, Warmwasser, Kühlung, Heizung, Energie (heute/gesamt inkl.
   Arbeitszahl), Laufzeiten, SG Ready
 - Sollwerte und Betriebsart direkt im Dashboard änderbar (nur wenn Schreibzugriff aktiv);
-  optional mit **PIN-Abfrage** (in der Instanz konfigurierbar, PIN wird pro Sitzung gemerkt)
+  optional mit **PIN-Abfrage** (in der Instanz konfigurierbar, PIN wird pro Sitzung gemerkt).
+  Die PIN-Eingabe erfolgt über einen eingebauten **Ziffernblock** – dadurch funktioniert sie
+  auch in Wandtablet-WebViews (IPSView/Fully), die keine Onboard-Tastatur öffnen. Die PIN
+  sollte deshalb nur aus Ziffern bestehen.
 - **Zwei Seiten** über Umschalter im Header (Zustand wird pro Gerät gemerkt):
   „Anlage“ = Schema + Raumklima/Warmwasser/Kühlung/Heizung,
   „Details“ = Energie heute/gesamt, Laufzeiten, SG Ready – beide Seiten passen auf ein

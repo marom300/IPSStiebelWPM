@@ -134,11 +134,18 @@ body.compressor .fangroup{animation:spin 2.6s linear infinite}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:60}
 .overlay.show{display:flex}
 .pinbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;
-  display:flex;flex-direction:column;gap:12px;width:min(280px,86vw)}
-.pintitle{font-weight:600;font-size:14px}
-.pinbox input{background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);
-  padding:10px;font-size:18px;text-align:center;letter-spacing:6px;outline:none;width:100%}
-.pinbox input:focus{border-color:var(--dim)}
+  display:flex;flex-direction:column;gap:12px;width:min(300px,88vw)}
+.pintitle{font-weight:600;font-size:14px;text-align:center}
+/* Eigener Ziffernblock – kein Rückgriff auf die Onboard-Tastatur nötig */
+.pindisplay{background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);
+  min-height:46px;display:flex;align-items:center;justify-content:center;font-size:26px;letter-spacing:12px}
+.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pinpad button{background:var(--card2);border:1px solid var(--line);border-radius:11px;color:var(--txt);
+  font-size:22px;font-weight:600;padding:16px 0;cursor:pointer;user-select:none;-webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent}
+.pinpad button:active{background:var(--line)}
+.pinpad button.ok{background:rgba(61,220,132,.12);border-color:rgba(61,220,132,.5);color:var(--ok)}
+.pinpad button.del{font-size:20px}
 
 /* Fehler-Toast (alert() wird im IPSView-WebView verschluckt) */
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;
@@ -452,11 +459,14 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
 <div class="overlay" id="pinOverlay">
   <div class="pinbox">
     <div class="pintitle">PIN eingeben</div>
-    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off">
-    <div class="row2">
-      <button class="toggle" id="pinCancel">Abbrechen</button>
-      <button class="toggle on" id="pinOk">OK</button>
+    <div id="pinDisplay" class="pindisplay">&nbsp;</div>
+    <div class="pinpad" id="pinPad">
+      <button>1</button><button>2</button><button>3</button>
+      <button>4</button><button>5</button><button>6</button>
+      <button>7</button><button>8</button><button>9</button>
+      <button class="del" data-act="del">⌫</button><button>0</button><button class="ok" data-act="ok">OK</button>
     </div>
+    <button class="toggle" id="pinCancel" style="width:100%">Abbrechen</button>
   </div>
 </div>
 <div id="toast"></div>
@@ -490,20 +500,29 @@ function toast(msg) {
 // PIN-Handling: einmal eingegeben, für die Sitzung gemerkt
 let cachedPin = sessionStorage.getItem('swpl_pin') || '';
 
+// Eigener Ziffernblock statt Onboard-Tastatur – Wandtablet-WebViews (IPSView/Fully)
+// öffnen die Systemtastatur bei programmatischem Fokus nur kurz und schließen sie wieder.
 function askPin() {
   return new Promise(resolve => {
-    const ov = $('pinOverlay'), inp = $('pinInput');
+    const ov = $('pinOverlay'), disp = $('pinDisplay'), pad = $('pinPad');
+    let pin = '';
+    const draw = () => { disp.textContent = pin.length ? '•'.repeat(pin.length) : ' '; };
+    draw();
     ov.classList.add('show');
-    inp.value = '';
-    setTimeout(() => inp.focus(), 60);
     const done = v => {
       ov.classList.remove('show');
-      $('pinOk').onclick = $('pinCancel').onclick = inp.onkeydown = null;
+      pad.onclick = $('pinCancel').onclick = null;
       resolve(v);
     };
-    $('pinOk').onclick = () => done(inp.value);
+    pad.onclick = e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      const act = b.dataset.act;
+      if (act === 'ok') { done(pin); }
+      else if (act === 'del') { pin = pin.slice(0, -1); draw(); }
+      else if (b.textContent.length === 1 && pin.length < 12) { pin += b.textContent; draw(); }
+    };
     $('pinCancel').onclick = () => done(null);
-    inp.onkeydown = e => { if (e.key === 'Enter') done(inp.value); };
   });
 }
 
