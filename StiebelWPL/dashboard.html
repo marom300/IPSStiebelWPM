@@ -628,11 +628,12 @@ function render() {
   document.body.classList.toggle('dist-cool', kuehl);
   document.body.classList.toggle('ww-on', ww);
 
-  // Fluss-Overlays
+  // Fluss-Overlays — im WW-Betrieb steht der ganze Verteilkreis inkl. Abzweige
+  const heatBranch = heiz || (pumpe && !kuehl && !ww);
   ['f_vl', 'f_rl'].forEach(id => $(id).classList.toggle('on', wpActive));
   ['f_vl_d', 'f_rl_d'].forEach(id => $(id).classList.toggle('on', distActive));
   ['f_vl_k', 'f_rl_k'].forEach(id => $(id).classList.toggle('on', kuehl));
-  ['f_vl_h', 'f_rl_h'].forEach(id => $(id).classList.toggle('on', heiz || (pumpe && !kuehl)));
+  ['f_vl_h', 'f_rl_h'].forEach(id => $(id).classList.toggle('on', heatBranch));
   ['f_ww_vl', 'f_ww_rl'].forEach(id => $(id).classList.toggle('on', ww));
 
   // Header
