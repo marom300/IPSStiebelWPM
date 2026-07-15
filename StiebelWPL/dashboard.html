@@ -620,9 +620,10 @@ function render() {
   const wpActive = vd || heiz || ww || kuehl;
   document.body.classList.toggle('wp-on', wpActive);
   document.body.classList.toggle('mode-cool', kuehl && !heiz);
-  // Verteilkreis: Fluss, sobald die Heizkreispumpe zirkuliert; Farbe aber nur bei
-  // echtem Heiz-/Kühlbetrieb (reine Umwälzung = neutral grau mit Fluss)
-  const distActive = heiz || kuehl || pumpe;
+  // Verteilkreis: Bei reiner WW-Bereitung koppelt das 3-Wege-Ventil den Heizkreis/Puffer
+  // ab (ganzer WP-Vorlauf geht in den Speicher) -> dann KEIN Fluss im Verteilkreis.
+  // Sonst: Farbe bei echtem Heiz-/Kühlbetrieb, sonst reine Umwälzung neutral grau.
+  const distActive = heiz || kuehl || (pumpe && !ww);
   document.body.classList.toggle('dist-heat', heiz && !kuehl);
   document.body.classList.toggle('dist-cool', kuehl);
   document.body.classList.toggle('ww-on', ww);
