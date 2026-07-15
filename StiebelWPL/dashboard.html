@@ -204,16 +204,18 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
   <!-- WP-Kreis: Wärmepumpe bis 3-Wege-Ventil -->
   <path id="p_vl"   class="pipe vl-line" d="M230,210 H310"/>
   <path id="p_rl"   class="pipe rl-line" d="M340,400 H230"/>
-  <!-- Verteilkreis: gemeinsamer Strang (Ventil -> Puffer -> Riser -> Trunk), nach Modus gefärbt -->
-  <path id="p_vl_d"     class="pipe vl-dist" d="M310,210 H760"/>
-  <path id="p_rl_riser" class="pipe rl-dist" d="M800,140 L800,277 A8,8 0 0 0 800,293 L800,400"/>
-  <path id="p_rl_d"     class="pipe rl-dist" d="M800,400 H340"/>
+  <!-- Abzweige ZUERST zeichnen -> gemeinsamer Strang liegt sauber darüber,
+       inaktive (graue) Stummel verschwinden hinter der aktiven Leitung -->
   <!-- Kühl-Abzweig (nur im Kühlbetrieb gefärbt) -->
   <path id="p_vl_k" class="pipe br-cool-vl" d="M760,210 V90 H840"/>
   <path id="p_rl_k" class="pipe br-cool-rl" d="M840,140 H800"/>
   <!-- Heiz-Abzweig (nur im Heizbetrieb gefärbt) -->
   <path id="p_vl_h" class="pipe br-heat-vl" d="M760,210 V285 H840"/>
   <path id="p_rl_h" class="pipe br-heat-rl" d="M840,340 H800"/>
+  <!-- Verteilkreis: gemeinsamer Strang (Ventil -> Puffer -> Riser -> Trunk), nach Modus gefärbt -->
+  <path id="p_vl_d"     class="pipe vl-dist" d="M310,210 H760"/>
+  <path id="p_rl_riser" class="pipe rl-dist" d="M800,140 L800,277 A8,8 0 0 0 800,293 L800,400"/>
+  <path id="p_rl_d"     class="pipe rl-dist" d="M800,400 H340"/>
   <!-- Puffer-Anbindung -->
   <path id="p_puf_o" class="pipe vl-dist" d="M465,210 V250"/>
   <path id="p_puf_u" class="pipe rl-dist" d="M465,360 V400"/>
@@ -265,14 +267,14 @@ footer{color:var(--dim);font-size:10px;text-align:center;padding:2px 0 6px}
     <text x="135" y="140" text-anchor="middle"><tspan class="cl">Außen </tspan><tspan id="v_aussen">–</tspan></text>
   </g>
 
-  <!-- ===== Chips auf den Leitungen ===== -->
+  <!-- ===== Chips am WP-Kreis (unter den Leitungen, frei von den WW-Steigleitungen) ===== -->
   <g class="chip">
-    <rect x="240" y="164" width="106" height="30" rx="15"/>
-    <text x="293" y="184" text-anchor="middle"><tspan class="cl">VL </tspan><tspan id="v_vl">–</tspan></text>
+    <rect x="230" y="228" width="100" height="30" rx="15"/>
+    <text x="280" y="248" text-anchor="middle"><tspan class="cl">VL </tspan><tspan id="v_vl">–</tspan></text>
   </g>
   <g class="chip">
-    <rect x="240" y="418" width="106" height="30" rx="15"/>
-    <text x="293" y="438" text-anchor="middle"><tspan class="cl">RL </tspan><tspan id="v_rl">–</tspan></text>
+    <rect x="230" y="418" width="100" height="30" rx="15"/>
+    <text x="280" y="438" text-anchor="middle"><tspan class="cl">RL </tspan><tspan id="v_rl">–</tspan></text>
   </g>
   <g class="chip">
     <rect x="560" y="418" width="130" height="30" rx="15"/>
