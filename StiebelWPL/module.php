@@ -173,33 +173,41 @@ class StiebelWPL extends IPSModule
             $off = $this->detectOffset($sock);
 
             // Block 1: Systemwerte 501..548
-            $b1 = $this->mbRead($sock, 4, 501 + $off, 48);
+            $b1 = $this->readBlock($sock, 4, 501 + $off, 48, '1 Systemwerte');
             // Block 1b: Raumwerte je Heiz-/Kühlkreis 584..608 (Fallback, je nach Regler)
-            $b1b = $this->mbRead($sock, 4, 584 + $off, 25);
+            $b1b = $this->readBlock($sock, 4, 584 + $off, 25, '1b Raumwerte');
             // Block 2: Systemparameter 1501..1516
-            $b2 = $this->mbRead($sock, 3, 1501 + $off, 16);
+            $b2 = $this->readBlock($sock, 3, 1501 + $off, 16, '2 Parameter');
             // Block 3: Systemstatus 2501..2507
-            $b3 = $this->mbRead($sock, 4, 2501 + $off, 7);
+            $b3 = $this->readBlock($sock, 4, 2501 + $off, 7, '3 Status');
 
             $b4 = null;
             if ($this->ReadPropertyBoolean('EnableEnergy')) {
                 // Block 4: Energiedaten 3501..3548
-                $b4 = $this->mbRead($sock, 4, 3501 + $off, 48);
+                $b4 = $this->readBlock($sock, 4, 3501 + $off, 48, '4 Energie');
             }
 
             $b5 = null;
             $b6 = null;
             if ($this->ReadPropertyBoolean('EnableSGReady')) {
-                $b5 = $this->mbRead($sock, 3, 4001 + $off, 3);
-                $b6 = $this->mbRead($sock, 4, 5001 + $off, 2);
+                $b5 = $this->readBlock($sock, 3, 4001 + $off, 3, '5 SG Ready');
+                $b6 = $this->readBlock($sock, 4, 5001 + $off, 2, '6 SG/Regler');
             }
         } finally {
-            fclose($sock);
+            if ($sock !== false) {
+                fclose($sock);
+            }
         }
 
         if ($b1 === null && $b3 === null) {
             $this->SetStatus(201);
             return false;
+        }
+
+        // Statusblock ist ausgefallen -> die Statusvariablen behalten sonst still
+        // einen alten Betriebszustand. Sichtbar machen statt stillschweigend anzeigen.
+        if ($b3 === null) {
+            $this->LogMessage('Statusblock (Register 2501) nicht lesbar – Betriebszustand kann veraltet sein.', KL_WARNING);
         }
 
         $this->SetStatus(102);
@@ -966,6 +974,38 @@ class StiebelWPL extends IPSModule
         }
         $this->SendDebug('Modbus', "Connect fehlgeschlagen: {$errstr} ({$errno})", 0);
         return false;
+    }
+
+    /**
+     * Liest einen Registerblock mit Wiederholversuchen.
+     *
+     * Das ISG steigt bei mehreren Lesevorgängen auf derselben Verbindung
+     * gelegentlich aus (Timeout). Ohne Retry blieben dann einzelne Blöcke leer –
+     * z. B. der Statusblock, wodurch die Betriebszustände still auf einem alten
+     * Wert einfrieren, während Temperaturen weiterlaufen.
+     *
+     * @param resource|false $sock wird bei Bedarf neu aufgebaut
+     */
+    private function readBlock(&$sock, int $fc, int $addr, int $qty, string $name): ?array
+    {
+        for ($try = 1; $try <= 3; $try++) {
+            if ($sock === false) {
+                $sock = $this->mbConnect();
+                if ($sock === false) {
+                    return null;
+                }
+            }
+            $r = $this->mbRead($sock, $fc, $addr, $qty);
+            if ($r !== null) {
+                return $r;
+            }
+            $this->SendDebug('Modbus', "Block {$name}: Versuch {$try} fehlgeschlagen, Verbindung wird erneuert", 0);
+            @fclose($sock);
+            $sock = false;
+            IPS_Sleep(300);
+        }
+        $this->SendDebug('Modbus', "Block {$name}: endgültig fehlgeschlagen", 0);
+        return null;
     }
 
     /**

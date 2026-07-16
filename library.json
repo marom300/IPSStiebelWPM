@@ -5,8 +5,8 @@
     "title": "Stiebel Eltron WPL (ISG Modbus TCP)",
     "description": "Anbindung einer Stiebel Eltron WPL Wärmepumpe (WPM 3) über das ISG web per Modbus TCP inkl. Deckenkühlung, Energiedaten, SG Ready und HTML-Dashboard mit Anlagenschema.",
     "url": "",
-    "version": "2.12",
-    "build": 22,
+    "version": "2.13",
+    "build": 23,
     "date": 0,
     "compatibility": {
         "minIPS": "6.0"
