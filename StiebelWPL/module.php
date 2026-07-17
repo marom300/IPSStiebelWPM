@@ -266,7 +266,8 @@ class StiebelWPL extends IPSModule
         // Nach dem ersten Lauf (10 s nach Übernehmen) aufs reguläre Intervall wechseln
         $this->SetTimerInterval('SWUpdate', max(60, $this->ReadPropertyInteger('SWInterval')) * 1000);
 
-        if (!IPS_SemaphoreEnter($this->semNameHttp(), 30000)) {
+        // Nicht aufstauen: läuft schon ein Sync, sofort aussetzen (kurze Wartezeit)
+        if (!IPS_SemaphoreEnter($this->semNameHttp(), 200)) {
             $this->SendDebug('Servicewelt', 'Sync übersprungen (Zugriff belegt)', 0);
             return false;
         }
@@ -343,10 +344,13 @@ class StiebelWPL extends IPSModule
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_TIMEOUT        => 30,
-                CURLOPT_HTTPHEADER     => ['Connection: close']
+                CURLOPT_RETURNTRANSFER  => true,
+                CURLOPT_CONNECTTIMEOUT  => 4,
+                CURLOPT_TIMEOUT         => 12,
+                // Hängende Übertragung abbrechen: < 50 B/s über 5 s -> raus
+                CURLOPT_LOW_SPEED_LIMIT => 50,
+                CURLOPT_LOW_SPEED_TIME  => 5,
+                CURLOPT_HTTPHEADER      => ['Connection: close']
             ]);
             $html = curl_exec($ch);
             if ($html === false) {
@@ -382,8 +386,8 @@ class StiebelWPL extends IPSModule
             $ch = curl_init('http://' . $host . '/save.php');
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CONNECTTIMEOUT => 4,
+                CURLOPT_TIMEOUT        => 15,
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => $payload,
                 // 'Expect:' unterdrückt "Expect: 100-continue" - der ISG-Webserver
