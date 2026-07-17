@@ -1091,16 +1091,28 @@ class StiebelWPL extends IPSModule
     private function readBytes($sock, int $len): ?string
     {
         $buf = '';
+        // Harte Obergrenze gegen Endlos-Warten: wenn das ISG die Verbindung annimmt,
+        // aber nicht antwortet, liefert fread() sonst endlos '' ohne dass timed_out
+        // je auslöst -> Busy-Loop, der Semaphore + Thread dauerhaft blockiert.
+        $deadline = microtime(true) + 4.0;
         while (strlen($buf) < $len) {
-            $chunk = fread($sock, $len - strlen($buf));
-            if ($chunk === false || $chunk === '') {
+            if (microtime(true) > $deadline) {
+                $this->SendDebug('Modbus', 'readBytes: Deadline erreicht (ISG antwortet nicht)', 0);
+                return null;
+            }
+            $chunk = @fread($sock, $len - strlen($buf));
+            if ($chunk === false) {
+                return null;
+            }
+            if ($chunk === '') {
                 $meta = stream_get_meta_data($sock);
-                if ($chunk === false || $meta['timed_out'] || feof($sock)) {
+                if ($meta['timed_out'] || feof($sock)) {
                     return null;
                 }
-            } else {
-                $buf .= $chunk;
+                usleep(20000); // 20 ms – kein Busy-Loop
+                continue;
             }
+            $buf .= $chunk;
         }
         return $buf;
     }
