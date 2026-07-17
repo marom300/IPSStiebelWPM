@@ -48,7 +48,8 @@ select{
   border-radius:9px;padding:5px 8px;font-size:12px;outline:none;cursor:pointer
 }
 .stamp{color:var(--dim);font-size:11px;white-space:nowrap}
-@media (max-width:1280px){.stamp{display:none}}
+.stamp.stale{color:var(--err);font-weight:700;font-size:12px}
+@media (max-width:1280px){.stamp{display:none}.stamp.stale{display:inline}}
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
 .schema{padding:6px 10px}
@@ -661,7 +662,13 @@ function render() {
   if (!pending.Betriebsart && has('Betriebsart')) $('selBetriebsart').value = String(D.Betriebsart);
   $('selBetriebsart').disabled = !D.writeEnabled;
   if (has('LastUpdate') && D.LastUpdate > 0) {
-    $('stamp').textContent = 'Stand ' + new Date(D.LastUpdate * 1000).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+    // Veraltet-Warnung: letzte vollständige Aktualisierung deutlich überfällig?
+    const alter_s = Math.floor(Date.now() / 1000) - D.LastUpdate;
+    const limit = Math.max((D.interval || 30) * 3 + 30, 120);
+    const veraltet = alter_s > limit;
+    const zeit = new Date(D.LastUpdate * 1000).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+    $('stamp').textContent = veraltet ? ('⚠ Daten von ' + zeit + '!') : ('Stand ' + zeit);
+    $('stamp').classList.toggle('stale', veraltet);
   }
 
   // Schema
@@ -779,7 +786,8 @@ function render() {
   $('tileRaum').style.display = '';
 
   document.querySelector('#tileSG').classList.toggle('err-tile', false);
-  $('footinfo').textContent = 'Stiebel Eltron WPL · ISG Modbus TCP' + (D.Regler ? ' · Regler: ' + D.Regler : '');
+  $('footinfo').textContent = 'Stiebel Eltron WPL · ISG Modbus TCP' + (D.Regler ? ' · Regler: ' + D.Regler : '')
+    + (D.version ? ' · v' + D.version : '');
 }
 
 async function load() {

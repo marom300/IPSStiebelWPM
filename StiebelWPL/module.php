@@ -172,14 +172,15 @@ class StiebelWPL extends IPSModule
         try {
             $off = $this->detectOffset($sock);
 
+            // Block 3 ZUERST: der Betriebsstatus ist der wichtigste Block — wenn die
+            // Verbindung mitten in der Sequenz abreißt, darf es nicht ihn treffen
+            $b3 = $this->readBlock($sock, 4, 2501 + $off, 7, '3 Status');
             // Block 1: Systemwerte 501..548
             $b1 = $this->readBlock($sock, 4, 501 + $off, 48, '1 Systemwerte');
             // Block 1b: Raumwerte je Heiz-/Kühlkreis 584..608 (Fallback, je nach Regler)
             $b1b = $this->readBlock($sock, 4, 584 + $off, 25, '1b Raumwerte');
             // Block 2: Systemparameter 1501..1516
             $b2 = $this->readBlock($sock, 3, 1501 + $off, 16, '2 Parameter');
-            // Block 3: Systemstatus 2501..2507
-            $b3 = $this->readBlock($sock, 4, 2501 + $off, 7, '3 Status');
 
             $b4 = null;
             if ($this->ReadPropertyBoolean('EnableEnergy')) {
@@ -217,7 +218,11 @@ class StiebelWPL extends IPSModule
         $this->parseBlock4($b4);
         $this->parseSGReady($b5, $b6);
 
-        $this->SetValueSafe('LastUpdate', time());
+        // "Letzte Aktualisierung" nur stempeln, wenn die Kernblöcke (Status + Werte)
+        // wirklich gelesen wurden — sonst sieht ein eingefrorener Zustand aktuell aus
+        if ($b1 !== null && $b3 !== null) {
+            $this->SetValueSafe('LastUpdate', time());
+        }
         $this->persistAvail();
         return true;
     }
@@ -714,13 +719,16 @@ class StiebelWPL extends IPSModule
         $availSet = array_flip($avail);
         $optionalSet = array_flip(self::OPTIONAL_VALUES);
 
+        $lib = @IPS_GetLibrary('{5E9738C1-4658-43B1-800D-0BF03B905757}');
         $out = [
             'writeEnabled' => $this->ReadPropertyBoolean('EnableWrite'),
             'pinRequired'  => $this->ReadPropertyString('PinCode') !== '',
             'cooling'      => $this->ReadPropertyBoolean('EnableCooling'),
             'energy'       => $this->ReadPropertyBoolean('EnableEnergy'),
             'sgready'      => $this->ReadPropertyBoolean('EnableSGReady'),
-            'hk2'          => $this->ReadPropertyBoolean('EnableHK2')
+            'hk2'          => $this->ReadPropertyBoolean('EnableHK2'),
+            'interval'     => $this->ReadPropertyInteger('Interval'),
+            'version'      => is_array($lib) ? (string) ($lib['Version'] ?? '') : ''
         ];
         foreach ($idents as $ident) {
             // Nie gelieferte optionale Werte weglassen -> Dashboard zeigt "–" statt 0
